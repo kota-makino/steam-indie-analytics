@@ -1,0 +1,127 @@
+version: '3.8'
+
+services:
+  # PostgreSQL データベース
+  postgres:
+    image: postgres:15-alpine
+    container_name: steam_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-steam_analytics}
+      POSTGRES_USER: ${POSTGRES_USER:-steam_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-steam_password}
+    ports:
+      - "5433:5432"  # ホスト:5433 → コンテナ:5432 (競合回避)
+    volumes:
+      # データの永続化
+      - postgres_data:/var/lib/postgresql/data
+      # 初期化SQLスクリプト (sql/ディレクトリから読み込み)
+      - ./sql:/docker-entrypoint-initdb.d
+    networks:
+      - steam_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-steam_user} -d ${POSTGRES_DB:-steam_analytics}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: |
+      postgres -c log_statement=all
+               -c log_destination=stderr
+               -c logging_collector=on
+               -c max_connections=200
+
+  # Redis キャッシュ・セッション管理
+  redis:
+    image: redis:7-alpine
+    container_name: steam_redis
+    ports:
+      - "6380:6379"  # ホスト:6380 → コンテナ:6379 (競合回避)
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - steam_network
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # pgAdmin (PostgreSQL管理ツール) - 開発時のみ使用
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: steam_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@steam-analytics.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "8081:80"  # ホスト:8081 → コンテナ:80 (競合回避)
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - steam_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles:
+      - dev  # docker-compose --profile dev up で起動
+
+  # Jupyter Lab (分析・開発用) - 開発時のみ使用
+  jupyter:
+    image: jupyter/datascience-notebook:latest
+    container_name: steam_jupyter
+    ports:
+      - "8889:8888"  # ホスト:8889 → コンテナ:8888 (競合回避)
+    volumes:
+      - ./notebooks:/home/jovyan/work/notebooks
+      - ./src:/home/jovyan/work/src
+      - ./data:/home/jovyan/work/data
+      - ./sql:/home/jovyan/work/sql
+    environment:
+      JUPYTER_ENABLE_LAB: "yes"
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-steam_analytics}
+      GRANT_SUDO: "yes"
+    user: root
+    networks:
+      - steam_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles:
+      - dev  # docker-compose --profile dev up で起動
+
+# 名前付きボリューム（データ永続化）
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker_volumes/postgres
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker_volumes/redis
+  pgadmin_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./docker_volumes/pgadmin
+
+# ネットワーク設定
+networks:
+  steam_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
