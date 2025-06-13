@@ -3,6 +3,7 @@ python-dotenv==1.0.0          # 環境変数管理
 requests==2.31.0              # HTTP リクエスト（Steam API連携）
 aiohttp==3.9.1                # 非同期HTTPリクエスト
 schedule==1.2.0               # 定期実行・バッチ処理
+tenacity==8.2.3               # リトライ機能（Steam APIレート制限対応）
 
 # Data Processing & Database
 pandas==2.1.4                 # データ操作・変換

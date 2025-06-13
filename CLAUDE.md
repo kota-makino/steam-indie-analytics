@@ -293,6 +293,51 @@ Technology Adoption:
 - [ ] ビジネス価値創出の具体例提示
 - [ ] 継続的改善・拡張の提案
 
+## コーディングルール
+
+### Cursor IDEエラー対応
+```yaml
+コードスタイル:
+  - 型ヒント必須（Pythonのmypyに準拠）
+  - import文は自動整理（isort準拠）
+  - PEP8準拠のコードフォーマット（black準拠）
+  - 未使用変数・未使用import文の排除
+
+Lintツール設定:
+  - flake8: コードリンター（E203, W503は無視設定）
+  - mypy: 型チェック（strict設定）
+  - black: コードフォーマッター（88文字幅）
+  - isort: import文自動整理
+
+エラー回避:
+  - function annotations: すべての関数に型ヒント
+  - variable annotations: 複雑な変数に型ヒント
+  - try-except: 例外処理の明示的な型指定
+  - Optional/Union: None許可時の明示的な型宣言
+```
+
+### 依存関係管理
+```yaml
+新規ライブラリ追加ルール:
+  1. requirements.txtに必ず追記
+  2. バージョン固定（セキュリティ確保）
+  3. 日本語コメントで用途説明
+  4. カテゴリ別に整理（既存パターンに従う）
+
+追記フォーマット:
+  library-name==x.x.x         # 用途説明（日本語）
+
+禁止事項:
+  - 手動pip installでの一時的インストール
+  - バージョン未固定でのrequirementsへの記載
+  - 本番環境に不要な開発用ライブラリの混在
+  
+コンテナ起動時の自動化:
+  - requirements.txtの変更は即座にコンテナに反映
+  - 手動でのライブラリインストール作業を撲滅
+  - Dev Container環境での一元管理
+```
+
 ## 開発・学習方針
 
 ### コード品質・可読性
@@ -403,8 +448,14 @@ jupyter lab notebooks/
 # テスト実行
 pytest --cov=src tests/
 
-# コード品質チェック
-black src/ tests/ && isort src/ tests/ && flake8 src/ tests/ && mypy src/
+# コード品質チェック（個別実行）
+black src/ tests/                          # コードフォーマット
+isort src/ tests/                          # import文整理
+flake8 src/ tests/ --max-line-length=88    # リンター
+mypy src/                                  # 型チェック
+
+# コード品質チェック（一括実行）
+black src/ tests/ && isort src/ tests/ && flake8 src/ tests/ --max-line-length=88 --extend-ignore=E203,W503 && mypy src/
 ```
 
 ### 重要な設定情報
@@ -514,6 +565,83 @@ async def get_game_data(session: AsyncSession, app_id: int) -> Optional[Game]:
 async def fetch_steam_api(url: str) -> dict:
     """Steam APIを呼び出す（リトライ機能付き）"""
     # 実装...
+```
+
+### コードフォーマット自動化
+
+#### 事前設定
+```bash
+# 開発時にrequirements.txtから自動インストール
+pip install -r requirements.txt
+
+# 設定ファイルの確認
+# .flake8, pyproject.toml, .isort.cfg などの設定ファイルが有効
+```
+
+#### 全ファイル一括フォーマット
+```bash
+# 1. 全Pythonファイルの自動フォーマット実行
+find . -name "*.py" -not -path "./venv/*" -not -path "./.git/*" | xargs black --line-length=88
+find . -name "*.py" -not -path "./venv/*" -not -path "./.git/*" | xargs isort
+
+# 2. リンターによるエラーチェック
+flake8 src/ tests/ --max-line-length=88 --extend-ignore=E203,W503,F401
+
+# 3. 型チェック実行
+mypy src/ --ignore-missing-imports
+```
+
+#### Claude Code生成ファイルの自動適用
+```yaml
+コード生成時の必須適用事項:
+  - 生成された全PythonファイルはBLACK準拠フォーマット（88文字）を自動適用
+  - すべての関数・メソッドに型ヒント（Type Hints）を必須で付与
+  - Import文はISORT準拠で自動整理・アルファベット順
+  - FLAKE8リンター準拠でコード品質チェック通過状態で生成
+  - 未使用import・変数の除去を自動実行
+  - PEP8準拠のコードスタイルを保持
+
+生成ファイルの品質保証:
+  - 生成後に手動でのフォーマット作業が不要な状態で提供
+  - requirements.txtへの依存関係自動追記
+  - 日本語コメントでの学習用詳細説明付与
+  - エラーハンドリング・ログ出力の適切な実装
+
+禁止事項:
+  - フォーマット未適用でのファイル生成
+  - 型ヒント不足でのコード提供
+  - Import文の手動整理が必要な状態での納品
+  - Lint警告が残存した状態でのファイル生成
+```
+
+#### VS Code/Cursor IDE設定
+```json
+// settings.json に追加推奨設定
+{
+    "python.formatting.provider": "black",
+    "python.formatting.blackArgs": ["--line-length=88"],
+    "python.sortImports.args": ["--profile", "black"],
+    "python.linting.enabled": true,
+    "python.linting.flake8Enabled": true,
+    "python.linting.flake8Args": [
+        "--max-line-length=88",
+        "--extend-ignore=E203,W503"
+    ],
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true
+    }
+}
+```
+
+#### Pre-commit Hook設定（推奨）
+```bash
+# pre-commitのインストールと設定
+pip install pre-commit
+pre-commit install
+
+# .pre-commit-config.yaml が自動実行される
+# 各コミット前に自動でフォーマットとリンターが実行
 ```
 
 ### Dev Container環境設定
