@@ -1,6 +1,38 @@
-version: '3.8'
-
 services:
+  # アプリケーションコンテナ (Dev Container用)
+  app:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    container_name: steam_app
+    working_dir: /workspace
+    volumes:
+      - .:/workspace:cached
+    ports:
+      - "8501:8501"  # Streamlit
+      - "8080:8080"  # その他のWebアプリ
+    networks:
+      - steam_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB:-steam_analytics}
+      - POSTGRES_USER=${POSTGRES_USER:-steam_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-steam_password}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - NODE_PATH=/usr/local/lib/node_modules
+      - PATH=/usr/local/bin:$PATH
+    command: sleep infinity
+    restart: unless-stopped
+
   # PostgreSQL データベース
   postgres:
     image: postgres:15-alpine
@@ -49,7 +81,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # pgAdmin (PostgreSQL管理ツール) - 開発時のみ使用
+  # pgAdmin (PostgreSQL管理ツール)
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: steam_pgadmin
@@ -67,10 +99,8 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
-    profiles:
-      - dev  # docker-compose --profile dev up で起動
 
-  # Jupyter Lab (分析・開発用) - 開発時のみ使用
+  # Jupyter Lab (分析・開発用)
   jupyter:
     image: jupyter/datascience-notebook:latest
     container_name: steam_jupyter
@@ -94,29 +124,12 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    profiles:
-      - dev  # docker-compose --profile dev up で起動
 
 # 名前付きボリューム（データ永続化）
 volumes:
   postgres_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./docker_volumes/postgres
   redis_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./docker_volumes/redis
   pgadmin_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./docker_volumes/pgadmin
 
 # ネットワーク設定
 networks:

@@ -62,3 +62,6 @@ data/
 # Cache
 .cache/
 .pytest_cache/
+
+#CLAUDE.md
+.CLAUDE.md
