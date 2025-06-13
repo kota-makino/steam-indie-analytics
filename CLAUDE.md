@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Steam Indie Analytics - データエンジニア転職ポートフォリオ
 
 ## プロジェクト概要
@@ -436,17 +440,30 @@ python scripts/setup_database.py
 
 #### 日常的な開発作業
 ```bash
+# シンプル接続テスト（Steam API & DB確認）
+python tests/test_steam_simple.py
+
+# データベース接続テスト
+python tests/test_db_connection.py
+
 # ETLパイプライン実行
 python scripts/run_etl.py
+
+# インディーゲーム収集スクリプト（直接実行）
+python collect_indie_games.py
 
 # ダッシュボード起動
 streamlit run src/dashboard/app.py
 
-# Jupyter Lab起動
+# Jupyter Lab起動 (コンテナが起動していれば http://localhost:8889)
 jupyter lab notebooks/
 
 # テスト実行
 pytest --cov=src tests/
+
+# 特定テスト実行
+pytest tests/test_steam_simple.py -v
+pytest tests/test_db_connection.py -v
 
 # コード品質チェック（個別実行）
 black src/ tests/                          # コードフォーマット
@@ -463,9 +480,16 @@ black src/ tests/ && isort src/ tests/ && flake8 src/ tests/ --max-line-length=8
 #### ポート番号
 - **PostgreSQL**: localhost:5433（競合回避のため5432ではない）
 - **Redis**: localhost:6380（競合回避のため6379ではない）
-- **pgAdmin**: http://localhost:8081
-- **Jupyter Lab**: http://localhost:8889
+- **pgAdmin**: http://localhost:8081 (admin@steam-analytics.local / admin123)
+- **Jupyter Lab**: http://localhost:8889 (token: steam_analytics)
 - **Streamlit**: http://localhost:8501
+
+#### 現在のプロジェクト状況
+- `collect_indie_games.py`: プロジェクトルートにあるメインスクリプト
+- `tests/test_steam_simple.py`: Steam API & DB接続のシンプルテスト
+- `tests/test_db_connection.py`: データベース接続専用テスト
+- `src/collectors/`: Steam API収集ロジック実装済み
+- `scripts/`: 各種運用スクリプト（一部未実装の可能性）
 
 #### API制限
 - **Steam API**: 200リクエスト/5分の制限

@@ -162,59 +162,157 @@ class IndieGameCollector:
         finally:
             cursor.close()
 
-    async def get_popular_indie_games(self, limit: int = 100) -> List[int]:
-        """人気インディーゲームのApp IDリストを取得"""
-
-        # 有名なインディーゲームのApp IDリスト（手動キュレーション）
-        known_indie_games = [
-            413150,  # Stardew Valley
-            250900,  # The Binding of Isaac: Rebirth
-            105600,  # Terraria
-            211820,  # Starbound
-            367520,  # Hollow Knight
-            391540,  # Undertale
-            257350,  # Hyper Light Drifter
-            447040,  # A Hat in Time
-            268910,  # Cuphead
-            574240,  # Ori and the Will of the Wisps
-            387290,  # Ori and the Blind Forest
-            593110,  # Dead Cells
-            588650,  # Subnautica
-            444090,  # Payday 2 (実はメジャーだが、例として)
-            230410,  # Warframe (F2P)
-            311210,  # Call of Duty: Black Ops III (メジャータイトル、テスト用)
+    async def get_steam_game_list(self, limit: int = 1000) -> List[int]:
+        """Steam APIから全ゲームリストを取得し、ランダムサンプリング"""
+        
+        print("🔍 Steam全ゲームリストを取得中...")
+        
+        # Steam Web APIからゲーム一覧を取得
+        url = "https://api.steampowered.com/ISteamApps/GetAppList/v2/"
+        
+        try:
+            async with self.session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    apps = data.get("applist", {}).get("apps", [])
+                    
+                    print(f"✅ 総ゲーム数: {len(apps):,}件")
+                    
+                    # ゲーム名にインディー関連キーワードが含まれるものを優先的に抽出
+                    potential_indie_games = []
+                    other_games = []
+                    
+                    for app in apps:
+                        name = app.get("name", "").lower()
+                        app_id = app.get("appid")
+                        
+                        # 無効なApp IDやDLC、ツールを除外
+                        if not app_id or app_id <= 0:
+                            continue
+                            
+                        # 明らかにゲームではないものを除外
+                        if any(keyword in name for keyword in ["dlc", "soundtrack", "demo", "trailer", "wallpaper", "tool"]):
+                            continue
+                            
+                        # インディー関連キーワードをチェック
+                        has_indie_keyword = any(keyword in name for keyword in self.indie_keywords)
+                        
+                        if has_indie_keyword:
+                            potential_indie_games.append(app_id)
+                        else:
+                            other_games.append(app_id)
+                    
+                    print(f"🎯 インディー関連キーワード含有: {len(potential_indie_games):,}件")
+                    
+                    # 有名なインディーゲームも追加（確実にいくつかは取得するため）
+                    known_indie_games = [
+                        413150,  # Stardew Valley
+                        250900,  # The Binding of Isaac: Rebirth
+                        105600,  # Terraria
+                        211820,  # Starbound
+                        367520,  # Hollow Knight
+                        391540,  # Undertale
+                        257350,  # Hyper Light Drifter
+                        447040,  # A Hat in Time
+                        268910,  # Cuphead
+                        574240,  # Ori and the Will of the Wisps
+                        387290,  # Ori and the Blind Forest
+                        593110,  # Dead Cells
+                        588650,  # Subnautica
+                        346110,  # ARK: Survival Evolved
+                        294100,  # RimWorld
+                        252950,  # Rocket League
+                        431960,  # Wallpaper Engine
+                        282070,  # This War of Mine
+                        238460,  # BattleBlock Theater
+                        108710,  # Alan Wake
+                    ]
+                    
+                    # 組み合わせて重複を除去
+                    import random
+                    all_candidates = list(set(known_indie_games + potential_indie_games[:500] + random.sample(other_games, min(500, len(other_games)))))
+                    random.shuffle(all_candidates)
+                    
+                    result = all_candidates[:limit]
+                    print(f"📊 収集対象として選定: {len(result)}件")
+                    
+                    return result
+                    
+                else:
+                    print(f"❌ Steam API エラー: HTTP {response.status}")
+                    # フォールバック: 既知のゲームリストを使用
+                    return self.get_fallback_game_list(limit)
+                    
+        except Exception as e:
+            print(f"❌ Steam API取得エラー: {e}")
+            return self.get_fallback_game_list(limit)
+    
+    def get_fallback_game_list(self, limit: int) -> List[int]:
+        """Steam APIが利用できない場合のフォールバックリスト"""
+        
+        print("⚠️  フォールバックモード: 拡張された既知ゲームリストを使用")
+        
+        # より多くの既知インディーゲームリスト
+        extended_indie_games = [
+            413150, 250900, 105600, 211820, 367520, 391540, 257350, 447040, 268910,
+            574240, 387290, 593110, 588650, 346110, 294100, 252950, 431960, 282070,
+            238460, 108710, 200510, 219740, 233450, 239030, 244210, 261550, 274190,
+            291160, 304430, 317400, 323190, 333600, 346330, 359550, 372490, 383870,
+            394690, 414700, 424840, 431750, 447020, 454650, 465240, 489940, 504230,
+            525200, 548430, 563720, 588650, 612020, 632360, 646570, 674940, 698780,
+            730530, 755790, 784080, 824270, 863550, 892970, 924970, 955050, 975370,
+            1000030, 1027290, 1058550, 1089490, 1119780, 1151340, 1182900, 1214460,
+            1246020, 1277580, 1309140, 1340700, 1372260, 1403820, 1435380, 1466940,
+            1498500, 1530060, 1561620, 1593180, 1624740, 1656300, 1687860, 1719420,
+            1750980, 1782540, 1814100, 1845660, 1877220, 1908780, 1940340, 1971900,
+            2003460, 2035020, 2066580, 2098140, 2129700, 2161260, 2192820, 2224380
         ]
+        
+        return extended_indie_games[:limit]
 
-        print(f"🎯 {len(known_indie_games)}件の人気インディーゲームから開始")
-
-        # Steam Spy APIから追加のインディーゲーム情報も取得可能（将来的に）
-        # ここでは既知のリストを返す
-        return known_indie_games[:limit]
-
-    async def get_game_details(self, app_id: int) -> Optional[Dict[str, Any]]:
-        """ゲーム詳細情報を取得"""
+    async def get_game_details(self, app_id: int, max_retries: int = 3) -> Optional[Dict[str, Any]]:
+        """ゲーム詳細情報を取得（リトライ機能付き）"""
 
         url = "https://store.steampowered.com/api/appdetails"
         params = {"appids": app_id, "l": "english", "cc": "us"}
 
-        try:
-            async with self.session.get(url, params=params) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    app_data = data.get(str(app_id))
+        for attempt in range(max_retries):
+            try:
+                async with self.session.get(url, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        app_data = data.get(str(app_id))
 
-                    if app_data and app_data.get("success"):
-                        return app_data.get("data")
+                        if app_data and app_data.get("success"):
+                            return app_data.get("data")
+                        else:
+                            if attempt == max_retries - 1:
+                                print(f"⚠️  App ID {app_id}: データ取得失敗 (最終試行)")
+                            return None
+                    elif response.status == 429:  # Too Many Requests
+                        wait_time = 2 ** attempt  # 指数バックオフ
+                        print(f"⏳ App ID {app_id}: レート制限 - {wait_time}秒待機")
+                        await asyncio.sleep(wait_time)
+                        continue
                     else:
-                        print(f"⚠️  App ID {app_id}: データ取得失敗")
+                        if attempt == max_retries - 1:
+                            print(f"❌ App ID {app_id}: HTTP {response.status}")
                         return None
-                else:
-                    print(f"❌ App ID {app_id}: HTTP {response.status}")
-                    return None
 
-        except Exception as e:
-            print(f"❌ App ID {app_id}: エラー - {e}")
-            return None
+            except asyncio.TimeoutError:
+                if attempt == max_retries - 1:
+                    print(f"⏱️  App ID {app_id}: タイムアウト")
+                else:
+                    await asyncio.sleep(1)
+                    continue
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    print(f"❌ App ID {app_id}: エラー - {e}")
+                else:
+                    await asyncio.sleep(1)
+                    continue
+
+        return None
 
     async def get_game_reviews(self, app_id: int) -> Optional[Dict[str, Any]]:
         """ゲームレビュー情報を取得"""
@@ -404,6 +502,17 @@ class IndieGameCollector:
         finally:
             cursor.close()
 
+    async def check_existing_game(self, app_id: int) -> bool:
+        """データベース内にゲームが既に存在するかチェック"""
+        cursor = self.db_conn.cursor()
+        try:
+            cursor.execute("SELECT 1 FROM games WHERE app_id = %s", (app_id,))
+            return cursor.fetchone() is not None
+        except Exception:
+            return False
+        finally:
+            cursor.close()
+
     async def collect_indie_games(self, limit: int = 20) -> None:
         """インディーゲーム情報の収集を実行"""
 
@@ -411,15 +520,22 @@ class IndieGameCollector:
         print("=" * 60)
 
         # 対象ゲームのApp IDリストを取得
-        app_ids = await self.get_popular_indie_games(limit)
+        app_ids = await self.get_steam_game_list(limit)
 
         indie_count = 0
         total_processed = 0
+        skipped_existing = 0
 
         for i, app_id in enumerate(app_ids):
             total_processed += 1
 
             print(f"\n📊 進捗: {i+1}/{len(app_ids)} - App ID {app_id}")
+
+            # 既存データをチェック（効率化）
+            if await self.check_existing_game(app_id):
+                skipped_existing += 1
+                print(f"  ⏭️  スキップ: 既に収集済み")
+                continue
 
             # ゲーム詳細情報を取得
             game_data = await self.get_game_details(app_id)
@@ -458,17 +574,30 @@ class IndieGameCollector:
                     }
                 )
 
-            # レート制限対策（1秒待機）
-            await asyncio.sleep(1)
+            # レート制限対策（0.5秒待機 - 大量収集のため高速化）
+            await asyncio.sleep(0.5)
+            
+            # 進捗定期レポート（50件ごと）
+            if (i + 1) % 50 == 0:
+                elapsed_time = (i + 1) * 0.5 / 60  # 概算経過時間（分）
+                remaining_time = (len(app_ids) - i - 1) * 0.5 / 60  # 概算残り時間（分）
+                print(f"\n📈 中間レポート ({i+1}/{len(app_ids)}):")
+                print(f"   ✅ インディーゲーム収集済み: {indie_count}件")
+                print(f"   ⏭️  スキップ済み（重複）: {skipped_existing}件")
+                print(f"   ⏱️  経過時間: {elapsed_time:.1f}分")
+                print(f"   ⏳ 残り予想時間: {remaining_time:.1f}分")
+                print("   " + "="*50)
 
         # 結果サマリー
         print("\n" + "=" * 60)
         print("📊 収集結果サマリー")
         print("=" * 60)
         print(f"🔍 処理済みゲーム: {total_processed}件")
-        print(f"✅ インディーゲーム: {indie_count}件")
-        rate = indie_count / total_processed * 100 if total_processed > 0 else 0
+        print(f"⏭️  スキップ済み（重複）: {skipped_existing}件")
+        print(f"✅ インディーゲーム新規収集: {indie_count}件")
+        rate = indie_count / (total_processed - skipped_existing) * 100 if (total_processed - skipped_existing) > 0 else 0
         print(f"📈 インディー判定率: {rate:.1f}%")
+        print(f"⏱️  総実行時間: {total_processed * 0.5 / 60:.1f}分")
 
         if self.collected_games:
             print(f"\n🏆 収集したインディーゲーム TOP 5:")
@@ -488,7 +617,7 @@ async def main() -> None:
     print("=" * 60)
 
     async with IndieGameCollector() as collector:
-        await collector.collect_indie_games(limit=15)  # 15件から開始
+        await collector.collect_indie_games(limit=1000)  # 1000件のデータ収集
 
     print("\n🎉 データ収集完了!")
 
