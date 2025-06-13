@@ -563,19 +563,6 @@ Dev Container起動時に`.devcontainer/post-create.sh`が自動実行：
 5. 環境確認レポート表示
 ```
 
-#### データベース接続テスト
-```bash
-# 手動で接続テスト実行
-python tests/test_db_connection.py
-
-# pytestで実行する場合
-pytest tests/test_db_connection.py -v
-
-# 期待される結果（正常時）
-✅ PostgreSQL接続: OK
-✅ Redis接続: OK  
-✅ 環境変数設定: OK
-```
 
 #### 開発フロー
 1. **Dev Container開起動**: 全サービス自動起動
