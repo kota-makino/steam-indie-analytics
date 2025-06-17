@@ -455,8 +455,12 @@ python collect_indie_games.py
 # ダッシュボード起動
 streamlit run src/dashboard/app.py
 
-# Jupyter Lab起動 (コンテナが起動していれば http://localhost:8889)
-jupyter lab notebooks/
+# Jupyter Lab起動（手動）
+jupyter lab --ip=0.0.0.0 --port=8889 --no-browser --allow-root --ServerApp.token='steam_analytics' --ServerApp.allow_origin='*' &
+
+# Jupyter Lab アクセス
+# ブラウザで http://localhost:8889/?token=steam_analytics
+# ダッシュボード: notebooks/interactive_dashboard.ipynb
 
 # テスト実行
 pytest --cov=src tests/
@@ -490,6 +494,18 @@ black src/ tests/ && isort src/ tests/ && flake8 src/ tests/ --max-line-length=8
 - `tests/test_db_connection.py`: データベース接続専用テスト
 - `src/collectors/`: Steam API収集ロジック実装済み
 - `scripts/`: 各種運用スクリプト（一部未実装の可能性）
+
+#### 本番環境デプロイメント想定
+**Streamlitダッシュボード**: 本番環境では正常動作予定
+- Dev Container特有の問題（JavaScript/CORS）は本番環境で解決
+- 推奨デプロイ方法：
+  - Streamlit Cloud: `streamlit run src/dashboard/app.py`
+  - Docker: 標準的なWebサーバー設定
+  - VPS/クラウド: Nginx + Streamlitプロキシ設定
+
+**代替ダッシュボード**（開発・プレゼンテーション用）:
+- Jupyter Notebook: `notebooks/interactive_dashboard.ipynb` 
+- 静的HTML: `static_dashboard.html`
 
 #### API制限
 - **Steam API**: 200リクエスト/5分の制限
