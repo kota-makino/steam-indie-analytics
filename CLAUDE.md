@@ -452,15 +452,14 @@ python scripts/run_etl.py
 # インディーゲーム収集スクリプト（直接実行）
 python collect_indie_games.py
 
-# ダッシュボード起動
-streamlit run src/dashboard/app.py
+# ダッシュボード起動（コンテナ内から）
+streamlit run src/dashboard/app.py --server.address 0.0.0.0 --server.port 8501 &
 
-# Jupyter Lab起動（手動）
-jupyter lab --ip=0.0.0.0 --port=8889 --no-browser --allow-root --ServerApp.token='steam_analytics' --ServerApp.allow_origin='*' &
+# ダッシュボード停止（ホスト側からコンテナ操作が必要）
+# docker compose exec app pkill -f streamlit
 
-# Jupyter Lab アクセス
-# ブラウザで http://localhost:8889/?token=steam_analytics
-# ダッシュボード: notebooks/interactive_dashboard.ipynb
+# ダッシュボード再起動
+streamlit run src/dashboard/app.py --server.address 0.0.0.0 --server.port 8501 &
 
 # テスト実行
 pytest --cov=src tests/
