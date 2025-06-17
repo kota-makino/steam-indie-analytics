@@ -20,6 +20,7 @@ sys.path.append('/workspace')
 # 分析モジュールのインポート
 from src.analyzers.market_analyzer import MarketAnalyzer
 from src.analyzers.success_analyzer import SuccessAnalyzer
+from src.analyzers.data_quality_checker import DataQualityChecker
 
 warnings.filterwarnings('ignore')
 
@@ -375,6 +376,197 @@ def display_insights_and_recommendations():
     for i, rec in enumerate(recommendations, 1):
         st.markdown(f"{i}. {rec}")
 
+def display_success_analysis(df):
+    """成功要因分析の表示"""
+    st.markdown("## 🎯 成功要因分析")
+    
+    # レビューデータがあるゲームをフィルタ
+    reviewed_df = df[(df['positive_reviews'] > 0) | (df['negative_reviews'] > 0)].copy()
+    
+    if len(reviewed_df) == 0:
+        st.warning("⚠️ レビューデータがあるゲームが見つかりません。")
+        return
+    
+    # 成功指標の計算
+    reviewed_df['total_reviews'] = reviewed_df['positive_reviews'] + reviewed_df['negative_reviews']
+    reviewed_df['rating'] = reviewed_df['positive_reviews'] / reviewed_df['total_reviews']
+    
+    # 成功ティアの定義
+    def classify_success(row):
+        if row['positive_reviews'] >= 100 and row['rating'] >= 0.8:
+            return 'Highly Successful'
+        elif row['positive_reviews'] >= 50 and row['rating'] >= 0.75:
+            return 'Successful'
+        elif row['positive_reviews'] >= 20 and row['rating'] >= 0.7:
+            return 'Moderately Successful'
+        else:
+            return 'Below Average'
+    
+    reviewed_df['success_tier'] = reviewed_df.apply(classify_success, axis=1)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 📊 成功ティア分布")
+        success_dist = reviewed_df['success_tier'].value_counts()
+        st.bar_chart(success_dist)
+    
+    with col2:
+        st.markdown("### 💰 成功ティア別平均価格")
+        success_price = reviewed_df.groupby('success_tier')['price_usd'].mean().round(2)
+        st.bar_chart(success_price)
+    
+    # 成功要因の詳細分析
+    st.markdown("### 🔍 価格帯別成功率")
+    
+    # 価格帯の定義
+    def price_tier(price):
+        if price == 0:
+            return 'Free'
+        elif price <= 5:
+            return '$0-$5'
+        elif price <= 15:
+            return '$5-$15'
+        elif price <= 30:
+            return '$15-$30'
+        else:
+            return '$30+'
+    
+    reviewed_df['price_tier'] = reviewed_df['price_usd'].apply(price_tier)
+    
+    # 価格帯別成功率
+    price_success = reviewed_df.groupby('price_tier').agg({
+        'success_tier': lambda x: (x.isin(['Highly Successful', 'Successful'])).mean() * 100,
+        'app_id': 'count',
+        'rating': 'mean',
+        'price_usd': 'mean'
+    }).round(2)
+    
+    price_success.columns = ['成功率%', 'ゲーム数', '平均評価', '平均価格']
+    st.dataframe(price_success, use_container_width=True)
+    
+    # 成功ゲームの特徴
+    st.markdown("### 🏆 高成功ゲームの特徴")
+    
+    successful_games = reviewed_df[reviewed_df['success_tier'].isin(['Highly Successful', 'Successful'])]
+    
+    if len(successful_games) > 0:
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            avg_price = successful_games['price_usd'].mean()
+            st.metric("平均価格", f"${avg_price:.2f}")
+        
+        with col2:
+            avg_rating = successful_games['rating'].mean()
+            st.metric("平均評価率", f"{avg_rating:.1%}")
+        
+        with col3:
+            avg_platforms = successful_games['platform_count'].mean()
+            st.metric("平均対応プラットフォーム", f"{avg_platforms:.1f}")
+        
+        # トップ成功ゲーム
+        st.markdown("### 🥇 トップパフォーマンスゲーム")
+        top_games = successful_games.nlargest(10, 'positive_reviews')[
+            ['name', 'positive_reviews', 'rating', 'price_usd', 'primary_genre']
+        ].copy()
+        top_games['rating'] = top_games['rating'].apply(lambda x: f"{x:.1%}")
+        top_games['price_usd'] = top_games['price_usd'].apply(lambda x: f"${x:.2f}")
+        top_games.columns = ['ゲーム名', 'ポジティブレビュー', '評価率', '価格', 'ジャンル']
+        
+        st.dataframe(top_games, use_container_width=True)
+    else:
+        st.info("成功ゲームのデータが不足しています。")
+
+def display_quality_analysis():
+    """データ品質分析の表示"""
+    st.markdown("## 📊 データ品質分析")
+    
+    try:
+        # データ品質チェッカーのインスタンス化
+        quality_checker = DataQualityChecker()
+        
+        with st.spinner("データ品質をチェック中..."):
+            quality_result = quality_checker.check_basic_quality_sync()
+        
+        if quality_result:
+            # 品質スコア表示
+            quality_score = quality_result.get('quality_score', 0)
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric(
+                    "データ品質スコア", 
+                    f"{quality_score}%",
+                    delta=None
+                )
+            
+            with col2:
+                metrics = quality_result.get('quality_metrics', {})
+                total_games = metrics.get('total_games', 0)
+                st.metric("総データ件数", f"{total_games:,}")
+            
+            with col3:
+                missing_names = metrics.get('missing_names', 0)
+                completeness = ((total_games - missing_names) / total_games * 100) if total_games > 0 else 0
+                st.metric("データ完全性", f"{completeness:.1f}%")
+            
+            # 品質評価
+            st.markdown("### 📈 品質評価")
+            
+            if quality_score >= 90:
+                st.success("🟢 **優秀**: データ品質は非常に高く、分析に適しています。")
+            elif quality_score >= 75:
+                st.info("🟡 **良好**: データ品質は良好ですが、一部改善の余地があります。")
+            elif quality_score >= 60:
+                st.warning("🟠 **注意**: データ品質に問題があり、クリーニングが推奨されます。")
+            else:
+                st.error("🔴 **改善必要**: データ品質が低く、大幅な改善が必要です。")
+            
+            # 詳細メトリクス
+            st.markdown("### 🔍 詳細品質メトリクス")
+            
+            quality_details = {
+                "指標": ["総ゲーム数", "ゲーム名欠損", "ジャンル欠損", "価格データ欠損"],
+                "値": [
+                    f"{metrics.get('total_games', 0):,}",
+                    f"{metrics.get('missing_names', 0):,}",
+                    f"{metrics.get('missing_genres', 0):,}",
+                    f"{metrics.get('missing_prices', 0):,}"
+                ],
+                "完全性%": [
+                    "100.0%",
+                    f"{(1 - metrics.get('missing_names', 0) / max(total_games, 1)) * 100:.1f}%",
+                    f"{(1 - metrics.get('missing_genres', 0) / max(total_games, 1)) * 100:.1f}%",
+                    f"{(1 - metrics.get('missing_prices', 0) / max(total_games, 1)) * 100:.1f}%"
+                ]
+            }
+            
+            quality_df = pd.DataFrame(quality_details)
+            st.dataframe(quality_df, use_container_width=True)
+            
+            # 改善提案
+            st.markdown("### 💡 品質改善提案")
+            
+            recommendations = [
+                "✅ 定期的なデータ品質モニタリングの実施",
+                "🔧 欠損データの自動補完機能の導入",
+                "⚡ リアルタイムデータ検証の強化",
+                "📊 品質メトリクスダッシュボードの設置",
+                "🚨 異常データアラート機能の実装"
+            ]
+            
+            for rec in recommendations:
+                st.markdown(f"- {rec}")
+        
+        else:
+            st.error("データ品質チェックに失敗しました。")
+            
+    except Exception as e:
+        st.error(f"データ品質分析でエラーが発生しました: {e}")
+        st.info("データベース接続を確認してください。")
+
 def main():
     """メインアプリケーション"""
     
@@ -424,6 +616,8 @@ def main():
         "価格分析": "price",
         "プラットフォーム分析": "platform",
         "開発者分析": "developer",
+        "成功要因分析": "success",
+        "データ品質": "quality",
         "洞察・推奨事項": "insights"
     }
     
@@ -440,6 +634,10 @@ def main():
         display_platform_analysis(df)
     elif selected_section == "開発者分析":
         display_developer_analysis(df)
+    elif selected_section == "成功要因分析":
+        display_success_analysis(df)
+    elif selected_section == "データ品質":
+        display_quality_analysis()
     elif selected_section == "洞察・推奨事項":
         display_insights_and_recommendations()
     

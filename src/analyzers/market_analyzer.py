@@ -1,28 +1,51 @@
 """
 インディーゲーム市場トレンド分析モジュール
 
-市場の全体的なトレンド、ジャンル別動向、価格戦略などを分析する。
+市場の全体的なトレンド、ジャンル別動向、価格戦略などを分析し、
+包括的な市場洞察を提供する。
 """
 
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Any, Optional
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
+import logging
 import os
 from dotenv import load_dotenv
-# import plotly.express as px
-# import plotly.graph_objects as go
-# from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
-# import seaborn as sns
-# import matplotlib.pyplot as plt
+from dataclasses import dataclass
+
+# 相対インポートを絶対インポートに変更（テスト実行用）
+try:
+    from ..config.database import get_db_session
+except ImportError:
+    # テスト実行時の代替インポート
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from config.database import get_db_session
+
+
+@dataclass
+class MarketTrendResult:
+    """市場トレンド分析結果データクラス"""
+    trend_type: str
+    period: str
+    total_games: int
+    avg_price: float
+    growth_rate: float
+    top_genres: List[Dict[str, Any]]
+    insights: List[str]
 
 
 class MarketAnalyzer:
-    """インディーゲーム市場分析クラス"""
+    """インディーゲーム市場分析クラス（非同期対応）"""
 
     def __init__(self):
         """初期化"""
+        self.logger = logging.getLogger(__name__)
         load_dotenv()
         
         # データベース接続設定
@@ -34,7 +57,7 @@ class MarketAnalyzer:
             "password": os.getenv("POSTGRES_PASSWORD", "steam_password"),
         }
         
-        # SQLAlchemy エンジン作成
+        # SQLAlchemy エンジン作成（互換性のため）
         self.engine = create_engine(
             f"postgresql://{self.db_config['user']}:{self.db_config['password']}@"
             f"{self.db_config['host']}:{self.db_config['port']}/{self.db_config['database']}"
@@ -413,6 +436,381 @@ class MarketAnalyzer:
         
         return insights
     
+    # ===== 新しい非同期分析メソッド =====
+    
+    async def analyze_genre_trends_async(self, session: AsyncSession) -> Dict[str, Any]:
+        """
+        ジャンル別トレンド分析（非同期版）
+        
+        Args:
+            session: データベースセッション
+            
+        Returns:
+            ジャンル別統計データ
+        """
+        try:
+            # ジャンル別統計クエリ
+            genre_query = text("""
+                SELECT 
+                    UNNEST(genres) as genre,
+                    COUNT(*) as game_count,
+                    AVG(CASE WHEN price_final > 0 THEN price_final/100.0 ELSE 0 END) as avg_price,
+                    COUNT(CASE WHEN is_free THEN 1 END) as free_games,
+                    AVG(CASE WHEN positive_reviews > 0 THEN 
+                        CAST(positive_reviews AS FLOAT) / (positive_reviews + negative_reviews) 
+                        ELSE 0 END) as avg_rating,
+                    AVG(CASE WHEN platforms_windows THEN 1 ELSE 0 END +
+                        CASE WHEN platforms_mac THEN 1 ELSE 0 END +
+                        CASE WHEN platforms_linux THEN 1 ELSE 0 END) as avg_platforms
+                FROM games 
+                WHERE type = 'game' 
+                  AND genres IS NOT NULL 
+                  AND array_length(genres, 1) > 0
+                GROUP BY UNNEST(genres)
+                HAVING COUNT(*) >= 5
+                ORDER BY game_count DESC
+                LIMIT 25;
+            """)
+            
+            result = await session.execute(genre_query)
+            genre_data = [dict(row._mapping) for row in result]
+            
+            # データの後処理
+            for genre in genre_data:
+                genre['avg_price'] = round(genre['avg_price'] or 0, 2)
+                genre['avg_rating'] = round(genre['avg_rating'] or 0, 3)
+                genre['avg_platforms'] = round(genre['avg_platforms'] or 0, 1)
+                genre['free_game_ratio'] = round(
+                    (genre['free_games'] / genre['game_count']) * 100, 1
+                )
+            
+            return {
+                'genre_stats': genre_data,
+                'total_genres': len(genre_data),
+                'analysis_date': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            self.logger.error(f"ジャンル分析エラー: {e}")
+            return {}
+    
+    async def analyze_price_trends_async(self, session: AsyncSession) -> Dict[str, Any]:
+        """
+        価格帯別トレンド分析（非同期版）
+        
+        Args:
+            session: データベースセッション
+            
+        Returns:
+            価格帯別統計データ
+        """
+        try:
+            # 価格帯別統計クエリ
+            price_query = text("""
+                SELECT 
+                    CASE 
+                        WHEN price_final = 0 THEN 'Free'
+                        WHEN price_final <= 500 THEN '$0-$5'
+                        WHEN price_final <= 1000 THEN '$5-$10'
+                        WHEN price_final <= 2000 THEN '$10-$20'
+                        WHEN price_final <= 3000 THEN '$20-$30'
+                        ELSE '$30+'
+                    END as price_range,
+                    COUNT(*) as game_count,
+                    AVG(CASE WHEN positive_reviews > 0 THEN 
+                        CAST(positive_reviews AS FLOAT) / (positive_reviews + negative_reviews) 
+                        ELSE 0 END) as avg_rating,
+                    COUNT(CASE WHEN genres::text LIKE '%Indie%' THEN 1 END) as indie_count,
+                    AVG(CASE WHEN platforms_windows THEN 1 ELSE 0 END +
+                        CASE WHEN platforms_mac THEN 1 ELSE 0 END +
+                        CASE WHEN platforms_linux THEN 1 ELSE 0 END) as avg_platforms
+                FROM games 
+                WHERE type = 'game'
+                GROUP BY 
+                    CASE 
+                        WHEN price_final = 0 THEN 'Free'
+                        WHEN price_final <= 500 THEN '$0-$5'
+                        WHEN price_final <= 1000 THEN '$5-$10'
+                        WHEN price_final <= 2000 THEN '$10-$20'
+                        WHEN price_final <= 3000 THEN '$20-$30'
+                        ELSE '$30+'
+                    END
+                ORDER BY 
+                    CASE 
+                        WHEN price_final = 0 THEN 0
+                        WHEN price_final <= 500 THEN 1
+                        WHEN price_final <= 1000 THEN 2
+                        WHEN price_final <= 2000 THEN 3
+                        WHEN price_final <= 3000 THEN 4
+                        ELSE 5
+                    END;
+            """)
+            
+            result = await session.execute(price_query)
+            price_data = [dict(row._mapping) for row in result]
+            
+            # データの後処理
+            for price_range in price_data:
+                price_range['avg_rating'] = round(price_range['avg_rating'] or 0, 3)
+                price_range['avg_platforms'] = round(price_range['avg_platforms'] or 0, 1)
+                price_range['indie_ratio'] = round(
+                    (price_range['indie_count'] / price_range['game_count']) * 100, 1
+                )
+            
+            return {
+                'price_distribution': price_data,
+                'analysis_date': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            self.logger.error(f"価格分析エラー: {e}")
+            return {}
+    
+    async def analyze_success_factors_async(self, session: AsyncSession) -> Dict[str, Any]:
+        """
+        成功要因分析（非同期版）
+        
+        Args:
+            session: データベースセッション
+            
+        Returns:
+            成功要因分析データ
+        """
+        try:
+            # 高評価ゲームの特徴分析
+            success_query = text("""
+                WITH success_metrics AS (
+                    SELECT 
+                        app_id,
+                        name,
+                        genres,
+                        price_final/100.0 as price_usd,
+                        positive_reviews,
+                        negative_reviews,
+                        CASE WHEN positive_reviews + negative_reviews > 0 
+                             THEN CAST(positive_reviews AS FLOAT) / (positive_reviews + negative_reviews)
+                             ELSE 0 END as rating,
+                        platforms_windows + platforms_mac + platforms_linux as platform_count,
+                        CASE WHEN genres::text LIKE '%Indie%' THEN true ELSE false END as is_indie
+                    FROM games 
+                    WHERE type = 'game' 
+                      AND positive_reviews + negative_reviews >= 10
+                ),
+                success_tiers AS (
+                    SELECT *,
+                        CASE 
+                            WHEN rating >= 0.9 AND positive_reviews >= 100 THEN 'Highly Successful'
+                            WHEN rating >= 0.8 AND positive_reviews >= 50 THEN 'Successful'
+                            WHEN rating >= 0.7 AND positive_reviews >= 20 THEN 'Moderately Successful'
+                            ELSE 'Below Average'
+                        END as success_tier
+                    FROM success_metrics
+                )
+                SELECT 
+                    success_tier,
+                    COUNT(*) as game_count,
+                    AVG(price_usd) as avg_price,
+                    AVG(platform_count) as avg_platforms,
+                    AVG(CASE WHEN is_indie THEN 1.0 ELSE 0.0 END) * 100 as indie_ratio,
+                    AVG(rating) as avg_rating
+                FROM success_tiers
+                GROUP BY success_tier
+                ORDER BY 
+                    CASE success_tier
+                        WHEN 'Highly Successful' THEN 1
+                        WHEN 'Successful' THEN 2
+                        WHEN 'Moderately Successful' THEN 3
+                        ELSE 4
+                    END;
+            """)
+            
+            result = await session.execute(success_query)
+            success_data = [dict(row._mapping) for row in result]
+            
+            # データの後処理
+            for tier in success_data:
+                tier['avg_price'] = round(tier['avg_price'] or 0, 2)
+                tier['avg_platforms'] = round(tier['avg_platforms'] or 0, 1)
+                tier['indie_ratio'] = round(tier['indie_ratio'] or 0, 1)
+                tier['avg_rating'] = round(tier['avg_rating'] or 0, 3)
+            
+            return {
+                'success_analysis': success_data,
+                'analysis_date': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            self.logger.error(f"成功要因分析エラー: {e}")
+            return {}
+    
+    async def analyze_market_size_async(self, session: AsyncSession) -> Dict[str, Any]:
+        """
+        市場規模分析（非同期版）
+        
+        Args:
+            session: データベースセッション
+            
+        Returns:
+            市場規模統計データ
+        """
+        try:
+            # 市場規模統計クエリ
+            market_query = text("""
+                SELECT 
+                    COUNT(*) as total_games,
+                    COUNT(CASE WHEN genres::text LIKE '%Indie%' THEN 1 END) as indie_games,
+                    COUNT(CASE WHEN is_free THEN 1 END) as free_games,
+                    COUNT(CASE WHEN positive_reviews > 0 THEN 1 END) as reviewed_games,
+                    AVG(CASE WHEN price_final > 0 THEN price_final/100.0 ELSE 0 END) as avg_price,
+                    SUM(positive_reviews + negative_reviews) as total_reviews,
+                    COUNT(CASE WHEN platforms_windows THEN 1 END) as windows_games,
+                    COUNT(CASE WHEN platforms_mac THEN 1 END) as mac_games,
+                    COUNT(CASE WHEN platforms_linux THEN 1 END) as linux_games
+                FROM games 
+                WHERE type = 'game';
+            """)
+            
+            result = await session.execute(market_query)
+            market_data = dict(result.fetchone()._mapping)
+            
+            # 追加の統計計算
+            indie_ratio = (market_data['indie_games'] / market_data['total_games']) * 100
+            free_ratio = (market_data['free_games'] / market_data['total_games']) * 100
+            reviewed_ratio = (market_data['reviewed_games'] / market_data['total_games']) * 100
+            
+            return {
+                'market_overview': {
+                    'total_games': market_data['total_games'],
+                    'indie_games': market_data['indie_games'],
+                    'free_games': market_data['free_games'],
+                    'reviewed_games': market_data['reviewed_games'],
+                    'avg_price': round(market_data['avg_price'] or 0, 2),
+                    'total_reviews': market_data['total_reviews'],
+                    'indie_ratio': round(indie_ratio, 1),
+                    'free_ratio': round(free_ratio, 1),
+                    'reviewed_ratio': round(reviewed_ratio, 1),
+                    'platform_coverage': {
+                        'windows': market_data['windows_games'],
+                        'mac': market_data['mac_games'],
+                        'linux': market_data['linux_games']
+                    }
+                },
+                'analysis_date': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            self.logger.error(f"市場規模分析エラー: {e}")
+            return {}
+    
+    async def generate_market_insights_async(self, session: AsyncSession) -> List[str]:
+        """
+        市場洞察の生成（非同期版）
+        
+        Args:
+            session: データベースセッション
+            
+        Returns:
+            市場洞察のリスト
+        """
+        insights = []
+        
+        try:
+            # 各種分析結果を並行取得
+            tasks = [
+                self.analyze_genre_trends_async(session),
+                self.analyze_price_trends_async(session),
+                self.analyze_market_size_async(session),
+                self.analyze_success_factors_async(session)
+            ]
+            
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            genre_data, price_data, market_data, success_data = results
+            
+            # 洞察生成
+            if not isinstance(genre_data, Exception) and genre_data.get('genre_stats'):
+                top_genre = genre_data['genre_stats'][0]
+                insights.append(
+                    f"最人気ジャンル「{top_genre['genre']}」は{top_genre['game_count']:,}件で市場を牽引"
+                )
+            
+            if not isinstance(market_data, Exception) and market_data.get('market_overview'):
+                overview = market_data['market_overview']
+                insights.append(
+                    f"インディーゲーム比率{overview['indie_ratio']}%で市場に重要な影響"
+                )
+                insights.append(
+                    f"平均価格${overview['avg_price']}で手頃な価格帯が主流"
+                )
+            
+            if not isinstance(price_data, Exception) and price_data.get('price_distribution'):
+                free_games = next((p for p in price_data['price_distribution'] 
+                                 if p['price_range'] == 'Free'), None)
+                if free_games:
+                    insights.append(
+                        f"無料ゲーム{free_games['game_count']:,}件でフリーミアム戦略が普及"
+                    )
+            
+            if not isinstance(success_data, Exception) and success_data.get('success_analysis'):
+                successful_games = [s for s in success_data['success_analysis'] 
+                                  if s['success_tier'] in ['Highly Successful', 'Successful']]
+                if successful_games:
+                    avg_success_price = sum(s['avg_price'] for s in successful_games) / len(successful_games)
+                    insights.append(
+                        f"成功ゲームの平均価格${avg_success_price:.2f}で最適価格帯が判明"
+                    )
+            
+        except Exception as e:
+            self.logger.error(f"洞察生成エラー: {e}")
+            insights.append("データ分析中にエラーが発生しました")
+        
+        return insights
+    
+    async def generate_comprehensive_report_async(self, session: AsyncSession) -> Dict[str, Any]:
+        """
+        包括的な市場分析レポート生成（非同期版）
+        
+        Args:
+            session: データベースセッション
+            
+        Returns:
+            包括的分析レポート
+        """
+        try:
+            # 各種分析を並行実行
+            tasks = [
+                self.analyze_genre_trends_async(session),
+                self.analyze_price_trends_async(session),
+                self.analyze_market_size_async(session),
+                self.analyze_success_factors_async(session),
+                self.generate_market_insights_async(session)
+            ]
+            
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 結果の統合
+            report = {
+                'report_id': f"market_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                'generated_at': datetime.now().isoformat(),
+                'genre_analysis': results[0] if not isinstance(results[0], Exception) else {},
+                'price_analysis': results[1] if not isinstance(results[1], Exception) else {},
+                'market_overview': results[2] if not isinstance(results[2], Exception) else {},
+                'success_analysis': results[3] if not isinstance(results[3], Exception) else {},
+                'insights': results[4] if not isinstance(results[4], Exception) else [],
+                'report_status': 'completed',
+                'error_count': sum(1 for r in results if isinstance(r, Exception))
+            }
+            
+            return report
+            
+        except Exception as e:
+            self.logger.error(f"包括レポート生成エラー: {e}")
+            return {
+                'report_id': f"market_analysis_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                'generated_at': datetime.now().isoformat(),
+                'error': str(e),
+                'report_status': 'failed'
+            }
+    
     def create_market_summary_report(self) -> str:
         """市場サマリーレポートの生成"""
         
@@ -494,5 +892,44 @@ def main():
         print(f"❌ 分析エラー: {e}")
 
 
+async def main_async():
+    """非同期メイン実行関数（新しい分析機能のテスト用）"""
+    analyzer = MarketAnalyzer()
+    
+    async with get_db_session() as session:
+        # 包括的分析レポート生成
+        print("🔄 包括的市場分析を実行中...")
+        report = await analyzer.generate_comprehensive_report_async(session)
+        
+        print("🎮 Steam市場分析レポート")
+        print("=" * 50)
+        
+        if report.get('market_overview', {}).get('market_overview'):
+            overview = report['market_overview']['market_overview']
+            print(f"📊 総ゲーム数: {overview['total_games']:,}")
+            print(f"🎯 インディーゲーム: {overview['indie_games']:,} ({overview['indie_ratio']}%)")
+            print(f"💰 平均価格: ${overview['avg_price']}")
+            print(f"🆓 無料ゲーム: {overview['free_games']:,} ({overview['free_ratio']}%)")
+        
+        if report.get('genre_analysis', {}).get('genre_stats'):
+            print(f"\n🏆 TOP 5ジャンル:")
+            for i, genre in enumerate(report['genre_analysis']['genre_stats'][:5], 1):
+                print(f"  {i}. {genre['genre']}: {genre['game_count']:,}件 (平均${genre['avg_price']})")
+        
+        if report.get('insights'):
+            print("\n💡 市場洞察:")
+            for insight in report['insights']:
+                print(f"  • {insight}")
+        
+        print(f"\n📅 分析日時: {report['generated_at']}")
+        print(f"🎯 分析状況: {report['report_status']}")
+
+
 if __name__ == "__main__":
+    # 従来の同期分析
+    print("🔍 Steam インディーゲーム市場分析（同期版）")
     main()
+    
+    print("\n" + "="*60)
+    print("🚀 新しい非同期分析を実行")
+    asyncio.run(main_async())
