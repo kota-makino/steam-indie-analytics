@@ -25,7 +25,10 @@ except ImportError:
     try:
         from config.database import get_db_session
     except ImportError:
-        get_db_session = None
+        try:
+            from src.config.database import get_db_session
+        except ImportError:
+            get_db_session = None
 
 
 @dataclass

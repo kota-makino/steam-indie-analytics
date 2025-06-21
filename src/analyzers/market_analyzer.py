@@ -17,15 +17,19 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
-# 相対インポートを絶対インポートに変更（テスト実行用）
+# 相対インポートの処理
 try:
     from ..config.database import get_db_session
 except ImportError:
-    # テスト実行時の代替インポート
     import sys
-    import os
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from config.database import get_db_session
+    try:
+        from config.database import get_db_session
+    except ImportError:
+        try:
+            from src.config.database import get_db_session
+        except ImportError:
+            get_db_session = None  # フォールバック用
 
 
 @dataclass

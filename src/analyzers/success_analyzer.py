@@ -29,7 +29,10 @@ except ImportError:
     try:
         from config.database import get_db_session
     except ImportError:
-        get_db_session = None  # フォールバック用
+        try:
+            from src.config.database import get_db_session
+        except ImportError:
+            get_db_session = None  # フォールバック用
 
 
 @dataclass
