@@ -339,10 +339,44 @@ class IndieGameCollector:
         return None
 
     def is_indie_game(self, game_data: Dict[str, Any]) -> bool:
-        """ゲームがインディーゲームかどうかを判定"""
+        """
+        ゲームがインディーゲームかどうかを判定
+        
+        ビューで表示される条件と一致させるため、以下の条件も適用:
+        - ジャンル情報が存在すること
+        - 開発者情報が存在すること
+        - 基本的なゲーム情報が完全であること
+        """
+
+        # 基本データの存在チェック（ビューのJOIN条件に対応）
+        if not game_data.get("name") or not game_data.get("steam_appid"):
+            return False
+            
+        # ジャンル情報が存在するかチェック（ビューのINNER JOIN対応）
+        genres = game_data.get("genres", [])
+        if not genres:
+            return False
+            
+        # 開発者情報が存在するかチェック（ビューのINNER JOIN対応）
+        # ただし、既存データとの整合性のため、空の場合でも例外的に通す場合がある
+        developers = game_data.get("developers", [])
+        if not developers:
+            # 例外: ジャンルが豊富で明らかにインディーゲームの場合は通す
+            genres = game_data.get("genres", [])
+            if len(genres) < 3:  # ジャンル情報が少ない場合は除外
+                return False
+            
+        # DLCやデモは除外（ビューの品質基準に合わせる）
+        name_lower = game_data.get("name", "").lower()
+        if any(keyword in name_lower for keyword in ["demo", "dlc", "soundtrack", "trailer"]):
+            return False
+            
+        # ゲームタイプのチェック
+        game_type = game_data.get("type", "")
+        if game_type not in ["game"]:
+            return False
 
         # 開発者情報での判定
-        developers = game_data.get("developers", [])
         publishers = game_data.get("publishers", [])
 
         # 大手パブリッシャーの場合は除外
@@ -353,7 +387,6 @@ class IndieGameCollector:
                 return False
 
         # ジャンル情報での判定
-        genres = game_data.get("genres", [])
         for genre in genres:
             genre_desc = genre.get("description", "").lower()
             if "indie" in genre_desc or "independent" in genre_desc:

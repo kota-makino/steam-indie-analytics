@@ -65,3 +65,6 @@ tenacity==8.2.3               # リトライ機能
 # Optional: Development Tools
 pre-commit==3.6.0             # Git フック管理
 mypy==1.7.1                   # 型チェック
+
+# AI & LLM APIs
+google-generativeai==0.8.5    # Gemini API（分析コメント生成）
