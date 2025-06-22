@@ -106,7 +106,8 @@ st.markdown(
 )
 
 
-@st.cache_data(ttl=30)  # 30秒でキャッシュ期限切れ（リアルタイム更新用）
+
+@st.cache_data(ttl=60)  # 1分でキャッシュ期限切れ
 def load_data():
     """データの読み込み（キャッシュ機能付き）"""
     try:
@@ -1321,22 +1322,9 @@ def main():
 
     # データ統計表示
     st.sidebar.success(f"✅ **{len(initial_df):,}件** のゲームデータを読み込み")
+    
     st.sidebar.info(f"📅 最終更新: {datetime.now().strftime('%H:%M:%S')}")
     
-    # 診断情報
-    if st.sidebar.checkbox("🔍 診断情報表示", value=False):
-        try:
-            from sqlalchemy import create_engine, text
-            engine = create_engine(
-                f"postgresql://{os.getenv('POSTGRES_USER', 'steam_user')}:{os.getenv('POSTGRES_PASSWORD', 'steam_password')}@"
-                f"{os.getenv('POSTGRES_HOST', 'postgres')}:{int(os.getenv('POSTGRES_PORT', 5432))}/{os.getenv('POSTGRES_DB', 'steam_analytics')}"
-            )
-            with engine.connect() as conn:
-                result = conn.execute(text("SELECT COUNT(*) FROM game_analysis_view WHERE is_indie = true"))
-                live_count = result.fetchone()[0]
-                st.sidebar.info(f"🔴 リアルタイム: {live_count:,}件")
-        except:
-            st.sidebar.error("診断エラー")
 
     progress_bar.progress(100)
     status_text.text("✅ データ準備完了")

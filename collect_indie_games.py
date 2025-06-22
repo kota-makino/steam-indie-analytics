@@ -8,6 +8,7 @@ PostgreSQLデータベースに保存します。
 import asyncio
 import os
 from typing import Any, Dict, List, Optional
+from datetime import datetime
 
 import aiohttp
 import psycopg2  # type: ignore
@@ -409,6 +410,45 @@ class IndieGameCollector:
 
         return False
 
+    async def run_data_migration(self) -> bool:
+        """データ移行スクリプトを自動実行"""
+        try:
+            import subprocess
+            import sys
+            
+            # データ移行スクリプトを実行
+            result = subprocess.run(
+                [sys.executable, "scripts/migrate_to_normalized_schema.py"],
+                cwd="/workspace",
+                capture_output=True,
+                text=True,
+                timeout=300  # 5分タイムアウト
+            )
+            
+            if result.returncode == 0:
+                print(f"✅ データ移行が正常に完了しました")
+                # 移行後のインディーゲーム数を取得
+                try:
+                    lines = result.stdout.split('\n')
+                    for line in lines:
+                        if "インディーゲーム:" in line:
+                            print(f"   📊 移行後インディーゲーム数: {line.split(':')[1].strip()}")
+                            break
+                except:
+                    pass
+                return True
+            else:
+                print(f"❌ データ移行でエラーが発生しました")
+                print(f"   エラー出力: {result.stderr[:200]}...")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            print(f"⏱️  データ移行がタイムアウトしました（5分超過）")
+            return False
+        except Exception as e:
+            print(f"❌ データ移行の実行中にエラー: {e}")
+            return False
+
     async def save_game_to_db(
         self, game_data: Dict[str, Any], review_data: Optional[Dict[str, Any]] = None
     ) -> None:
@@ -631,6 +671,21 @@ class IndieGameCollector:
         rate = indie_count / (total_processed - skipped_existing) * 100 if (total_processed - skipped_existing) > 0 else 0
         print(f"📈 インディー判定率: {rate:.1f}%")
         print(f"⏱️  総実行時間: {total_processed * 0.5 / 60:.1f}分")
+        
+        # 自動データ移行の実行
+        print(f"\n🔄 データ移行を自動実行中...")
+        migration_success = await self.run_data_migration()
+        
+        # ダッシュボード反映のための完了通知
+        print(f"\n🔄 ダッシュボード更新:")
+        print(f"   ✅ データベース更新完了")
+        print(f"   📊 新規インディーゲーム: {indie_count}件")
+        if migration_success:
+            print(f"   🔄 データ移行: 自動完了")
+        else:
+            print(f"   ⚠️  データ移行: 手動実行が必要")
+        print(f"   ⏱️  完了時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"   💡 ダッシュボードで「🔄 データ更新」ボタンを押して反映してください")
 
         if self.collected_games:
             print(f"\n🏆 収集したインディーゲーム TOP 5:")
