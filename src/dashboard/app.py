@@ -539,17 +539,17 @@ def display_market_overview(df):
             with st.spinner("AI分析中..."):
                 try:
                     ai_generator = AIInsightsGenerator()
-                
-                # データサマリー作成
-                data_summary = {
-                    'total_games': total_games,
-                    'free_games': len(free_games),
-                    'free_ratio': free_ratio,
-                    'avg_price_jpy': avg_price_jpy if avg_price_jpy > 0 else 0,
-                    'top_genres': df['primary_genre'].value_counts().head(3).index.tolist(),
-                    'review_ratio': reviewed_ratio
-                }
-                
+                    
+                    # データサマリー作成
+                    data_summary = {
+                        'total_games': total_games,
+                        'free_games': len(free_games),
+                        'free_ratio': free_ratio,
+                        'avg_price_jpy': avg_price_jpy if avg_price_jpy > 0 else 0,
+                        'top_genres': df['primary_genre'].value_counts().head(3).index.tolist(),
+                        'review_ratio': reviewed_ratio
+                    }
+                    
                     # AI洞察生成
                     insight = ai_generator.generate_market_overview_insight(data_summary)
                     
@@ -883,21 +883,30 @@ def display_genre_analysis(df):
         )
 
     # AI洞察セクション
-    if AI_INSIGHTS_AVAILABLE and st.button("🤖 AIジャンル分析洞察を生成", key="genre_ai_insight"):
-        with st.spinner("AI分析中..."):
-            try:
-                ai_generator = AIInsightsGenerator()
-                
-                # ジャンル分析洞察生成
-                insight = ai_generator.generate_genre_analysis_insight(genre_stats)
-                
-                # 洞察表示
-                st.markdown("### 🤖 AIジャンル分析")
-                st.info(insight)
-                
-            except Exception as e:
-                st.error(f"AI洞察生成エラー: {e}")
-                st.caption("💡 Gemini APIキーが設定されているか確認してください")
+    if st.button("🤖 AIジャンル分析洞察を生成", key="genre_ai_insight"):
+        if AI_INSIGHTS_AVAILABLE:
+            with st.spinner("AI分析中..."):
+                try:
+                    ai_generator = AIInsightsGenerator()
+                    
+                    # ジャンル分析洞察生成
+                    insight = ai_generator.generate_genre_analysis_insight(genre_stats)
+                    
+                    # 洞察表示
+                    st.markdown("### 🤖 AIジャンル分析")
+                    st.info(insight)
+                    
+                except Exception as e:
+                    st.error(f"AI洞察生成エラー: {e}")
+                    st.caption("💡 Gemini APIキーが設定されているか確認してください")
+        else:
+            # デモモード用AI洞察
+            with st.spinner("デモAI分析中..."):
+                time.sleep(1)
+                st.markdown("### 🤖 AIジャンル分析 (デモ)")
+                demo_insight = generate_demo_insights("", "genre")
+                st.info(demo_insight)
+                st.caption("💡 実際の環境では、Gemini APIによる詳細な分析が提供されます")
 
 
 def display_price_analysis(df):
@@ -1261,38 +1270,47 @@ def display_price_analysis(df):
         )
 
     # AI価格戦略洞察
-    if AI_INSIGHTS_AVAILABLE and st.button("🤖 AI価格戦略洞察を生成", key="price_ai_insight"):
-        with st.spinner("AI分析中..."):
-            try:
-                ai_generator = AIInsightsGenerator()
-                
-                # 価格データサマリー作成
-                # 価格帯分類を動的に作成
-                filtered_df_temp = filtered_df.copy()
-                filtered_df_temp["price_tier"] = filtered_df_temp["price_usd"].apply(price_tier)
-                price_counts = filtered_df_temp['price_tier'].value_counts()
-                total = len(filtered_df)
-                
-                price_data = {
-                    'free_percent': free_ratio,
-                    'budget_percent': (price_counts.get('低価格帯 (¥0-750)', 0) / total * 100) if total > 0 else 0,
-                    'mid_percent': (price_counts.get('中価格帯 (¥750-2,250)', 0) / total * 100) if total > 0 else 0,
-                    'premium_percent': (price_counts.get('高価格帯 (¥2,250-4,500)', 0) / total * 100) if total > 0 else 0,
-                    'luxury_percent': (price_counts.get('プレミアム (¥4,500+)', 0) / total * 100) if total > 0 else 0,
-                    'avg_price': avg_price_jpy if avg_price_jpy > 0 else 0,
-                    'price_rating_correlation': 'データ不足' if len(filtered_df[filtered_df['total_reviews'] > 0]) < 10 else '正の相関'
-                }
-                
-                # AI洞察生成
-                insight = ai_generator.generate_price_strategy_insight(price_data)
-                
-                # 洞察表示
-                st.markdown("### 🤖 AI価格戦略分析")
-                st.info(insight)
-                
-            except Exception as e:
-                st.error(f"AI洞察生成エラー: {e}")
-                st.caption("💡 Gemini APIキーが設定されているか確認してください")
+    if st.button("🤖 AI価格戦略洞察を生成", key="price_ai_insight"):
+        if AI_INSIGHTS_AVAILABLE:
+            with st.spinner("AI分析中..."):
+                try:
+                    ai_generator = AIInsightsGenerator()
+                    
+                    # 価格データサマリー作成
+                    # 価格帯分類を動的に作成
+                    filtered_df_temp = filtered_df.copy()
+                    filtered_df_temp["price_tier"] = filtered_df_temp["price_usd"].apply(price_tier)
+                    price_counts = filtered_df_temp['price_tier'].value_counts()
+                    total = len(filtered_df)
+                    
+                    price_data = {
+                        'free_percent': free_ratio,
+                        'budget_percent': (price_counts.get('低価格帯 (¥0-750)', 0) / total * 100) if total > 0 else 0,
+                        'mid_percent': (price_counts.get('中価格帯 (¥750-2,250)', 0) / total * 100) if total > 0 else 0,
+                        'premium_percent': (price_counts.get('高価格帯 (¥2,250-4,500)', 0) / total * 100) if total > 0 else 0,
+                        'luxury_percent': (price_counts.get('プレミアム (¥4,500+)', 0) / total * 100) if total > 0 else 0,
+                        'avg_price': avg_price_jpy if avg_price_jpy > 0 else 0,
+                        'price_rating_correlation': 'データ不足' if len(filtered_df[filtered_df['total_reviews'] > 0]) < 10 else '正の相関'
+                    }
+                    
+                    # AI洞察生成
+                    insight = ai_generator.generate_price_strategy_insight(price_data)
+                    
+                    # 洞察表示
+                    st.markdown("### 🤖 AI価格戦略分析")
+                    st.info(insight)
+                    
+                except Exception as e:
+                    st.error(f"AI洞察生成エラー: {e}")
+                    st.caption("💡 Gemini APIキーが設定されているか確認してください")
+        else:
+            # デモモード用AI洞察
+            with st.spinner("デモAI分析中..."):
+                time.sleep(1)
+                st.markdown("### 🤖 AI価格戦略分析 (デモ)")
+                demo_insight = generate_demo_insights("", "pricing")
+                st.info(demo_insight)
+                st.caption("💡 実際の環境では、Gemini APIによる詳細な分析が提供されます")
 
 
 def display_insights_and_recommendations():
@@ -1348,32 +1366,36 @@ def display_insights_and_recommendations():
     # AI総合洞察セクション
     st.markdown("### 🤖 AI総合戦略洞察")
     
-    if AI_INSIGHTS_AVAILABLE and st.button("🤖 総合AI洞察を生成", key="comprehensive_ai_insight"):
-        with st.spinner("包括的なAI分析を実行中..."):
-            try:
-                ai_generator = AIInsightsGenerator()
-                
-                # 成功要因データの準備（例示データ）
-                success_data = {
-                    'avg_reviews': 1500,
-                    'avg_rating': 0.85,
-                    'success_price_range': '¥750-2,250',
-                    'success_genres': ['Action', 'Adventure', 'Puzzle'],
-                    'platform_strategy': 'Windows + Mac対応'
-                }
-                
-                # AI成功要因洞察生成
-                insight = ai_generator.generate_success_factors_insight(success_data)
-                
-                # 洞察表示
-                st.info(insight)
-                
-            except Exception as e:
-                st.error(f"AI洞察生成エラー: {e}")
-                st.caption("💡 Gemini APIキーが設定されているか確認してください")
-    
-    if not AI_INSIGHTS_AVAILABLE:
-        st.info("🤖 AI洞察機能を利用するには、Gemini APIキーを設定してください (.env ファイル)")
+    if st.button("🤖 総合AI洞察を生成", key="comprehensive_ai_insight"):
+        if AI_INSIGHTS_AVAILABLE:
+            with st.spinner("包括的なAI分析を実行中..."):
+                try:
+                    ai_generator = AIInsightsGenerator()
+                    
+                    # 成功要因データの準備（例示データ）
+                    success_data = {
+                        'avg_reviews': 1500,
+                        'avg_rating': 0.85,
+                        'success_price_range': '¥750-2,250',
+                        'success_genres': ['Action', 'Adventure', 'Puzzle'],
+                        'platform_strategy': 'Windows + Mac対応'
+                    }
+                    
+                    # AI成功要因洞察生成
+                    insight = ai_generator.generate_success_factors_insight(success_data)
+                    
+                    # 洞察表示
+                    st.info(insight)
+                    
+                except Exception as e:
+                    st.error(f"AI洞察生成エラー: {e}")
+                    st.caption("💡 Gemini APIキーが設定されているか確認してください")
+        else:
+            # デモモード用AI洞察
+            with st.spinner("デモAI総合分析中..."):
+                time.sleep(2)  # 総合分析のため少し長め
+                st.info(generate_demo_insights("", "comprehensive"))
+                st.caption("💡 実際の環境では、Gemini APIによる詳細な総合分析が提供されます")
 
 
 def main():
