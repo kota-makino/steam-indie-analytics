@@ -1,0 +1,39 @@
+# Production Dockerfile for Steam Indie Analytics
+FROM python:3.11-slim
+
+# 作業ディレクトリ設定
+WORKDIR /app
+
+# システムパッケージのインストール
+RUN apt-get update && apt-get install -y \
+    curl \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python依存関係のインストール
+COPY requirements-production.txt .
+RUN pip install --no-cache-dir -r requirements-production.txt
+
+# アプリケーションファイルのコピー
+COPY src/ ./src/
+COPY sql/ ./sql/
+COPY scripts/ ./scripts/
+COPY collect_indie_games.py .
+
+# 本番用設定ファイル
+COPY .env.production .env
+
+# 非rootユーザーの作成とセキュリティ設定
+RUN useradd --create-home --shell /bin/bash app \
+    && chown -R app:app /app
+USER app
+
+# ヘルスチェック
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+# ポート公開
+EXPOSE 8501
+
+# 起動コマンド
+CMD ["streamlit", "run", "src/dashboard/app.py", "--server.address", "0.0.0.0", "--server.port", "8501", "--server.headless", "true"]

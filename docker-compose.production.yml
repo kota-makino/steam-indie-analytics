@@ -1,0 +1,131 @@
+# Production Docker Compose Configuration
+# Steam Indie Analytics - 本番環境用設定
+
+services:
+  # アプリケーションコンテナ (本番用)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    container_name: steam_app_prod
+    working_dir: /app
+    ports:
+      - "8501:8501"  # Streamlit
+    networks:
+      - steam_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - STEAM_API_KEY=${STEAM_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - DEBUG=False
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL データベース (本番用)
+  postgres:
+    image: postgres:15-alpine
+    container_name: steam_postgres_prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      # データの永続化
+      - postgres_data:/var/lib/postgresql/data
+      # 初期化SQLスクリプト
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    networks:
+      - steam_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: |
+      postgres -c max_connections=100
+               -c shared_buffers=256MB
+               -c effective_cache_size=1GB
+               -c maintenance_work_mem=64MB
+               -c checkpoint_completion_target=0.9
+               -c wal_buffers=16MB
+               -c default_statistics_target=100
+               -c random_page_cost=1.1
+               -c effective_io_concurrency=200
+               -c work_mem=4MB
+               -c min_wal_size=1GB
+               -c max_wal_size=4GB
+
+  # Redis キャッシュ (本番用)
+  redis:
+    image: redis:7-alpine
+    container_name: steam_redis_prod
+    volumes:
+      - redis_data:/data
+      - ./redis.production.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - steam_network
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx リバースプロキシ (本番用)
+  nginx:
+    image: nginx:alpine
+    container_name: steam_nginx_prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - steam_network
+    depends_on:
+      - app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# 名前付きボリューム（データ永続化）
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ネットワーク設定
+networks:
+  steam_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
