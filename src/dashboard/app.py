@@ -18,21 +18,64 @@ import warnings
 from datetime import datetime
 import time
 
-# プロジェクトルートをパスに追加
-sys.path.append("/workspace")
+# パス設定 (Streamlit Cloud対応)
+import os
+import sys
+from pathlib import Path
 
-# 分析モジュールのインポート
-from src.analyzers.market_analyzer import MarketAnalyzer
-from src.analyzers.success_analyzer import SuccessAnalyzer
-from src.analyzers.data_quality_checker import DataQualityChecker
+# プロジェクトルートを動的に取得
+current_dir = Path(__file__).parent
+project_root = current_dir.parent.parent
+sys.path.insert(0, str(project_root))
+
+# Streamlit Cloud環境検出
+IS_STREAMLIT_CLOUD = (
+    os.getenv('STREAMLIT_SHARING') == 'true' or 
+    'streamlit.io' in os.getenv('HOSTNAME', '') or
+    '/mount/src/' in str(current_dir)
+)
+
+# 分析モジュールのインポート (エラーハンドリング付き)
+try:
+    from src.analyzers.market_analyzer import MarketAnalyzer
+    from src.analyzers.success_analyzer import SuccessAnalyzer  
+    from src.analyzers.data_quality_checker import DataQualityChecker
+    ANALYZERS_AVAILABLE = True
+except ImportError as e:
+    st.error(f"分析モジュールのインポートエラー: {e}")
+    ANALYZERS_AVAILABLE = False
 
 # AI洞察生成モジュール
+AI_INSIGHTS_AVAILABLE = False
 try:
-    from src.analyzers.ai_insights_generator import AIInsightsGenerator
-    AI_INSIGHTS_AVAILABLE = True
-except ImportError:
-    print("⚠️ AI洞察機能は利用できません（Gemini APIキーまたはライブラリが不足）")
-    AI_INSIGHTS_AVAILABLE = False
+    if ANALYZERS_AVAILABLE:
+        from src.analyzers.ai_insights_generator import AIInsightsGenerator
+        
+        # APIキー確認
+        if IS_STREAMLIT_CLOUD:
+            api_key = st.secrets.get("api_keys", {}).get("gemini_api_key")
+        else:
+            api_key = os.getenv("GEMINI_API_KEY")
+            
+        if api_key:
+            AI_INSIGHTS_AVAILABLE = True
+        else:
+            st.info("🤖 AI洞察機能: Gemini APIキーが設定されていません")
+    else:
+        st.info("🤖 AI洞察機能: 分析モジュールが利用できません")
+except ImportError as e:
+    st.info(f"🤖 AI洞察機能: インポートエラー {e}")
+
+# デモ用AI洞察生成関数
+def generate_demo_insights(data_summary: str, section: str) -> str:
+    """デモ用AI洞察（固定メッセージ）"""
+    demo_insights = {
+        "market": "🎮 市場概況: インディーゲーム市場は多様性に富み、低価格帯ゲームが主流を占めています。プラットフォーム対応とユーザーレビューの質が成功の鍵となっています。",
+        "genre": "🎯 ジャンル分析: Actionジャンルが最も競争が激しく、Adventure・Casualジャンルにニッチな機会があります。複合ジャンルのゲームが高い評価を得る傾向があります。",
+        "pricing": "💰 価格戦略: 中価格帯（$10-30）が最適なスイートスポットです。無料ゲームは高いダウンロード数を獲得できますが、収益化に課題があります。",
+        "comprehensive": "📈 総合評価: インディーゲーム市場は創造性とユーザーエンゲージメントが重視される環境です。データドリブンな開発戦略が成功確率を高めます。"
+    }
+    return demo_insights.get(section, "🤖 AI分析データを処理中です...")
 
 warnings.filterwarnings("ignore")
 
@@ -49,6 +92,41 @@ st.set_page_config(
 )
 
 
+# デモデータ生成関数
+def load_demo_data():
+    """Streamlit Cloud用デモデータ生成"""
+    np.random.seed(42)  # 再現性のため
+    
+    # サンプルデータ生成
+    demo_data = {
+        'app_id': range(1, 549),
+        'name': [f'Demo Game {i}' for i in range(1, 549)],
+        'type': ['game'] * 548,
+        'is_free': np.random.choice([True, False], 548, p=[0.3, 0.7]),
+        'price_final': np.random.exponential(1500, 548),
+        'price_usd': np.random.exponential(15, 548),
+        'release_date': pd.date_range('2020-01-01', periods=548, freq='D'),
+        'platforms_windows': np.random.choice([True, False], 548, p=[0.9, 0.1]),
+        'platforms_mac': np.random.choice([True, False], 548, p=[0.6, 0.4]),
+        'platforms_linux': np.random.choice([True, False], 548, p=[0.5, 0.5]),
+        'platform_count': np.random.randint(1, 4, 548),
+        'positive_reviews': np.random.poisson(100, 548),
+        'negative_reviews': np.random.poisson(20, 548),
+        'total_reviews': lambda x: x['positive_reviews'] + x['negative_reviews'],
+        'rating': np.random.beta(8, 2, 548) * 100,  # 80%平均の評価
+        'is_indie': [True] * 548,
+        'primary_genre': np.random.choice(['Action', 'Adventure', 'Casual', 'RPG', 'Strategy'], 548),
+        'primary_developer': [f'Developer {i%50}' for i in range(548)],
+        'primary_publisher': [f'Publisher {i%30}' for i in range(548)],
+        'price_category': np.random.choice(['無料', '低価格', '中価格', 'プレミアム'], 548, p=[0.3, 0.4, 0.2, 0.1])
+    }
+    
+    df = pd.DataFrame(demo_data)
+    df['total_reviews'] = df['positive_reviews'] + df['negative_reviews']
+    df['positive_percentage'] = (df['positive_reviews'] / df['total_reviews'] * 100).fillna(0)
+    
+    return df
+
 # キャッシング設定（キャッシュ無効化）
 def get_cached_data():
     """データ取得（キャッシュなし）"""
@@ -58,6 +136,8 @@ def get_cached_data():
 @st.cache_data(ttl=600)
 def get_market_analysis():
     """キャッシュされた市場分析"""
+    if not ANALYZERS_AVAILABLE:
+        return {}
     try:
         analyzer = MarketAnalyzer()
         analyzer.load_data()
@@ -109,9 +189,29 @@ st.markdown(
 
 @st.cache_data(ttl=60)  # 1分でキャッシュ期限切れ
 def load_data():
-    """データの読み込み（キャッシュ機能付き）"""
-    try:
-        # データベース接続設定
+    """データの読み込み（キャッシュ機能付き）- Streamlit Cloud対応"""
+    
+    # Streamlit Cloud環境でのデモデータ読み込み
+    if IS_STREAMLIT_CLOUD:
+        try:
+            # Streamlit Secrets からデータベース設定取得
+            if 'database' in st.secrets:
+                db_config = {
+                    "host": st.secrets["database"]["host"],
+                    "port": int(st.secrets["database"]["port"]),
+                    "database": st.secrets["database"]["database"],
+                    "user": st.secrets["database"]["username"],
+                    "password": st.secrets["database"]["password"],
+                }
+            else:
+                # デモデータ使用
+                st.warning("🌟 デモモード: サンプルデータを表示しています")
+                return load_demo_data()
+        except Exception:
+            st.warning("🌟 デモモード: サンプルデータを表示しています")
+            return load_demo_data()
+    else:
+        # ローカル環境設定
         db_config = {
             "host": os.getenv("POSTGRES_HOST", "postgres"),
             "port": int(os.getenv("POSTGRES_PORT", 5432)),
@@ -119,6 +219,8 @@ def load_data():
             "user": os.getenv("POSTGRES_USER", "steam_user"),
             "password": os.getenv("POSTGRES_PASSWORD", "steam_password"),
         }
+    
+    try:
 
         # SQLAlchemy エンジン作成（タイムアウト設定付き）
         engine = create_engine(
@@ -432,10 +534,11 @@ def display_market_overview(df):
         st.caption(f"無料ゲーム: {len(free_games)}件")
 
     # AI洞察セクション
-    if AI_INSIGHTS_AVAILABLE and st.button("🤖 AI分析洞察を生成", key="market_ai_insight"):
-        with st.spinner("AI分析中..."):
-            try:
-                ai_generator = AIInsightsGenerator()
+    if st.button("🤖 AI分析洞察を生成", key="market_ai_insight"):
+        if AI_INSIGHTS_AVAILABLE:
+            with st.spinner("AI分析中..."):
+                try:
+                    ai_generator = AIInsightsGenerator()
                 
                 # データサマリー作成
                 data_summary = {
@@ -447,16 +550,24 @@ def display_market_overview(df):
                     'review_ratio': reviewed_ratio
                 }
                 
-                # AI洞察生成
-                insight = ai_generator.generate_market_overview_insight(data_summary)
-                
-                # 洞察表示
-                st.markdown("### 🤖 AI市場分析")
-                st.info(insight)
-                
-            except Exception as e:
-                st.error(f"AI洞察生成エラー: {e}")
-                st.caption("💡 Gemini APIキーが設定されているか確認してください")
+                    # AI洞察生成
+                    insight = ai_generator.generate_market_overview_insight(data_summary)
+                    
+                    # 洞察表示
+                    st.markdown("### 🤖 AI市場分析")
+                    st.info(insight)
+                    
+                except Exception as e:
+                    st.error(f"AI洞察生成エラー: {e}")
+                    st.caption("💡 Gemini APIキーが設定されているか確認してください")
+        else:
+            # デモモード用AI洞察
+            with st.spinner("デモAI分析中..."):
+                time.sleep(1)  # リアルな体験のため
+                st.markdown("### 🤖 AI市場分析 (デモ)")
+                demo_insight = generate_demo_insights("", "market")
+                st.info(demo_insight)
+                st.caption("💡 実際の環境では、Gemini APIによる詳細な分析が提供されます")
 
 
 def display_genre_analysis(df):
