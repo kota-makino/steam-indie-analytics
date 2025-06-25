@@ -191,10 +191,12 @@ st.markdown(
 def load_data():
     """データの読み込み（キャッシュ機能付き）- Streamlit Cloud対応"""
     
-    # Streamlit Cloud環境でのデモデータ読み込み
-    if IS_STREAMLIT_CLOUD:
-        try:
-            # Streamlit Secrets からデータベース設定取得
+    # データベース接続設定の取得
+    db_config = None
+    
+    try:
+        if IS_STREAMLIT_CLOUD:
+            # Streamlit Cloud環境
             if 'database' in st.secrets:
                 db_config = {
                     "host": st.secrets["database"]["host"],
@@ -203,34 +205,46 @@ def load_data():
                     "user": st.secrets["database"]["username"],
                     "password": st.secrets["database"]["password"],
                 }
+                st.info("🔗 外部データベース接続を試行中...")
             else:
-                # デモデータ使用
+                # Secretsにデータベース設定なし → デモモード
                 st.warning("🌟 デモモード: サンプルデータを表示しています")
+                st.caption("💡 実際のデータを表示するには、Streamlit Secretsでデータベース設定を行ってください")
                 return load_demo_data()
-        except Exception:
-            st.warning("🌟 デモモード: サンプルデータを表示しています")
-            return load_demo_data()
-    else:
-        # ローカル環境設定
-        db_config = {
-            "host": os.getenv("POSTGRES_HOST", "postgres"),
-            "port": int(os.getenv("POSTGRES_PORT", 5432)),
-            "database": os.getenv("POSTGRES_DB", "steam_analytics"),
-            "user": os.getenv("POSTGRES_USER", "steam_user"),
-            "password": os.getenv("POSTGRES_PASSWORD", "steam_password"),
-        }
+        else:
+            # ローカル環境
+            if os.getenv("POSTGRES_HOST"):
+                db_config = {
+                    "host": os.getenv("POSTGRES_HOST", "postgres"),
+                    "port": int(os.getenv("POSTGRES_PORT", 5432)),
+                    "database": os.getenv("POSTGRES_DB", "steam_analytics"),
+                    "user": os.getenv("POSTGRES_USER", "steam_user"),
+                    "password": os.getenv("POSTGRES_PASSWORD", "steam_password"),
+                }
+            else:
+                # 環境変数なし → デモモード
+                st.warning("🌟 デモモード: サンプルデータを表示しています")
+                st.caption("💡 実際のデータを表示するには、.envファイルでデータベース設定を行ってください")
+                return load_demo_data()
+    except Exception as e:
+        st.warning(f"🌟 デモモード: 設定読み込みエラー ({e})")
+        return load_demo_data()
+    
+    # データベース接続がない場合はデモモード
+    if db_config is None:
+        st.warning("🌟 デモモード: データベース設定がありません")
+        return load_demo_data()
     
     try:
-
         # SQLAlchemy エンジン作成（タイムアウト設定付き）
         engine = create_engine(
             f"postgresql://{db_config['user']}:{db_config['password']}@"
             f"{db_config['host']}:{db_config['port']}/{db_config['database']}",
             connect_args={
-                "connect_timeout": 10,  # 接続タイムアウト10秒
+                "connect_timeout": 5,  # 接続タイムアウト5秒（短縮）
                 "application_name": "streamlit_dashboard",
             },
-            pool_timeout=20,  # プール取得タイムアウト20秒
+            pool_timeout=10,  # プール取得タイムアウト10秒（短縮）
             pool_recycle=3600,  # 1時間でコネクション再利用
         )
 
@@ -302,8 +316,9 @@ def load_data():
         return df
 
     except Exception as e:
-        st.error(f"データベース接続エラー: {e}")
-        return None
+        st.warning(f"🌟 デモモード: データベース接続エラー ({str(e)[:100]}...)")
+        st.caption("💡 外部データベースに接続できないため、サンプルデータを表示しています")
+        return load_demo_data()
 
 
 def display_market_overview(df):
@@ -1422,12 +1437,8 @@ def main():
     progress_bar.progress(60)
 
     if df is None:
-        st.error(
-            "❌ データの読み込みに失敗しました。データベース接続を確認してください。"
-        )
-        st.info(
-            "💡 **トラブルシューティング**: Docker Composeサービスが起動しているか確認してください。"
-        )
+        st.error("❌ 予期しないエラーが発生しました。")
+        st.info("💡 ページを再読み込みしてください。")
         return
 
     status_text.text("データ処理中...")
