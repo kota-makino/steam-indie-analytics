@@ -29,7 +29,6 @@ git push origin main
 ### 2. 必要なAPIキー
 - **Gemini API Key**: AIサービス利用（必須）
   - 取得場所: https://makersuite.google.com/app/apikey
-  - 現在の値: `AIzaSyDI5iFYRhPzgJZKC3Jom0-TqypovOWOlVY`
 
 ## 🌐 Renderでのデプロイ手順
 
