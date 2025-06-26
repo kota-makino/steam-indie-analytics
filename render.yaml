@@ -1,0 +1,50 @@
+# Render Configuration for Steam Indie Analytics
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: steam-analytics-db
+    databaseName: steam_analytics
+    user: steam_user
+    plan: free
+    region: oregon
+    
+  # Web Service (Streamlit App)
+  - type: web
+    name: steam-indie-analytics
+    runtime: python3
+    plan: free
+    region: oregon
+    buildCommand: |
+      pip install -r requirements-render.txt
+      python scripts/setup_database_render.py
+    startCommand: streamlit run src/dashboard/app_render.py --server.address 0.0.0.0 --server.port $PORT --server.headless true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: RENDER
+        value: true
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: steam-analytics-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: steam-analytics-db
+          property: port
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: steam-analytics-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: steam-analytics-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: steam-analytics-db
+          property: password
+    autoDeploy: true
