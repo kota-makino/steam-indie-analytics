@@ -63,3 +63,5 @@ data/
 .cache/
 .pytest_cache/
 
+# Deployment
+DEPLOYMENT_RENDER_FULL.md
