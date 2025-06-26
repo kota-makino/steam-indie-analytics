@@ -28,6 +28,9 @@ current_dir = Path(__file__).parent
 project_root = current_dir.parent.parent
 sys.path.insert(0, str(project_root))
 
+# Render環境検出
+IS_RENDER = os.getenv('RENDER') == 'true' or 'onrender.com' in os.getenv('RENDER_EXTERNAL_URL', '')
+
 # Streamlit Cloud環境検出
 IS_STREAMLIT_CLOUD = (
     os.getenv('STREAMLIT_SHARING') == 'true' or 
@@ -195,7 +198,23 @@ def load_data():
     db_config = None
     
     try:
-        if IS_STREAMLIT_CLOUD:
+        if IS_RENDER:
+            # Render環境
+            if os.getenv("POSTGRES_HOST"):
+                db_config = {
+                    "host": os.getenv("POSTGRES_HOST"),
+                    "port": int(os.getenv("POSTGRES_PORT", 5432)),
+                    "database": os.getenv("POSTGRES_DB", "steam_analytics"),
+                    "user": os.getenv("POSTGRES_USER", "steam_user"),
+                    "password": os.getenv("POSTGRES_PASSWORD"),
+                }
+                st.info("🔗 Render PostgreSQL データベース接続中...")
+            else:
+                # Render環境でDB未設定 → デモモード
+                st.warning("🌟 デモモード: サンプルデータを表示しています")
+                st.caption("💡 実際のデータを表示するには、Render環境変数でデータベース設定を行ってください")
+                return load_demo_data()
+        elif IS_STREAMLIT_CLOUD:
             # Streamlit Cloud環境
             if 'database' in st.secrets:
                 db_config = {
@@ -248,7 +267,7 @@ def load_data():
             pool_recycle=3600,  # 1時間でコネクション再利用
         )
 
-        # インディーゲームのみを取得（プロジェクトの焦点）
+        # インディーゲームのみを取得（実際のテーブル構造に対応）
         query = """
         SELECT 
             app_id,
@@ -256,26 +275,37 @@ def load_data():
             type,
             is_free,
             short_description,
+            price_initial,
             price_final,
-            price_usd,
-            release_date,
+            price_final::float / 100 as price_usd,  -- セント単位をドル単位に変換
+            release_date_text as release_date,
             platforms_windows,
-            platforms_mac,
+            platforms_mac, 
             platforms_linux,
-            platform_count,
-            positive_reviews,
-            negative_reviews,
-            total_reviews,
-            rating,
-            is_indie,
-            primary_genre,
-            primary_developer,
-            primary_publisher,
-            price_category,
+            (platforms_windows::int + platforms_mac::int + platforms_linux::int) as platform_count,
+            COALESCE(positive_reviews, 0) as positive_reviews,
+            COALESCE(negative_reviews, 0) as negative_reviews,
+            (COALESCE(positive_reviews, 0) + COALESCE(negative_reviews, 0)) as total_reviews,
+            CASE 
+                WHEN (COALESCE(positive_reviews, 0) + COALESCE(negative_reviews, 0)) > 0 
+                THEN (COALESCE(positive_reviews, 0)::float / (COALESCE(positive_reviews, 0) + COALESCE(negative_reviews, 0))) * 100
+                ELSE 75.0 
+            END as rating,
+            CASE WHEN 'Indie' = ANY(genres) THEN true ELSE false END as is_indie,
+            CASE WHEN array_length(genres, 1) > 0 THEN genres[1] ELSE 'Unknown' END as primary_genre,
+            CASE WHEN array_length(developers, 1) > 0 THEN developers[1] ELSE 'Unknown' END as primary_developer,
+            CASE WHEN array_length(publishers, 1) > 0 THEN publishers[1] ELSE 'Unknown' END as primary_publisher,
+            CASE 
+                WHEN is_free THEN '無料'
+                WHEN price_final <= 500 THEN '低価格帯 (¥0-750)'
+                WHEN price_final <= 1500 THEN '中価格帯 (¥750-2,250)'
+                WHEN price_final <= 3000 THEN '高価格帯 (¥2,250-4,500)'
+                ELSE 'プレミアム (¥4,500+)'
+            END as price_category,
             created_at
-        FROM game_analysis_view
-        WHERE is_indie = true
-        ORDER BY created_at DESC;
+        FROM games 
+        WHERE type = 'game' AND 'Indie' = ANY(genres)
+        ORDER BY created_at DESC
         """
 
         # データベース接続テスト
@@ -285,15 +315,18 @@ def load_data():
             test_result = conn.execute(text("SELECT 1"))
             test_result.fetchone()
 
-        # データ読み込み（正規化ビューから）
+        # データ読み込み（実際のテーブルから）
         df = pd.read_sql_query(query, engine)
+        
+        # 成功メッセージ
+        st.success(f"✅ データベースから {len(df)} 件のインディーゲームデータを読み込みました")
 
         if len(df) == 0:
-            st.warning("⚠️ データベースにゲームデータが見つかりません。")
+            st.warning("⚠️ データベースにインディーゲームデータが見つかりません。")
             st.info(
-                "💡 正規化されたデータベーススキーマが必要です。移行スクリプトを実行してください。"
+                "💡 Steam APIからインディーゲームデータを収集する必要があります。"
             )
-            return None
+            return load_demo_data()  # データがない場合はデモモードに切り替え
 
         # データ型の調整
         df["platforms_windows"] = df["platforms_windows"].astype(bool)

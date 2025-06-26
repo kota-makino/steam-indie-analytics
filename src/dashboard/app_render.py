@@ -176,12 +176,47 @@ def load_data():
             pool_recycle=3600,
         )
 
-        # クエリ実行
-        query = "SELECT * FROM games LIMIT 548"  # 簡素化
+        # クエリ実行 - 実際のテーブル構造に合わせて修正
+        query = """
+        SELECT 
+            app_id,
+            name,
+            type,
+            is_free,
+            price_initial,
+            price_final,
+            price_final::float / 100 as price_usd,  -- セント単位をドル単位に変換
+            release_date_text as release_date,
+            platforms_windows,
+            platforms_mac, 
+            platforms_linux,
+            (platforms_windows::int + platforms_mac::int + platforms_linux::int) as platform_count,
+            genres,
+            categories,
+            COALESCE(positive_reviews, 0) as positive_reviews,
+            COALESCE(negative_reviews, 0) as negative_reviews,
+            (COALESCE(positive_reviews, 0) + COALESCE(negative_reviews, 0)) as total_reviews,
+            CASE 
+                WHEN (COALESCE(positive_reviews, 0) + COALESCE(negative_reviews, 0)) > 0 
+                THEN (COALESCE(positive_reviews, 0)::float / (COALESCE(positive_reviews, 0) + COALESCE(negative_reviews, 0))) * 100
+                ELSE 75.0 
+            END as rating,
+            created_at
+        FROM games 
+        WHERE type = 'game'
+        ORDER BY created_at DESC
+        LIMIT 548
+        """
         df = pd.read_sql_query(query, engine)
         
         # 基本的なデータクリーニング
         df = df.fillna(0)
+        
+        # 日付処理
+        if 'release_date' in df.columns:
+            df['release_date'] = pd.to_datetime(df['release_date'], errors='coerce')
+        
+        st.success(f"✅ 実際のデータベースから {len(df)} 件のゲームデータを読み込みました")
         return df
 
     except Exception as e:
