@@ -28,21 +28,27 @@ current_dir = Path(__file__).parent
 project_root = current_dir.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Render環境検出
-IS_RENDER = os.getenv('RENDER') == 'true' or 'onrender.com' in os.getenv('RENDER_EXTERNAL_URL', '')
+# Render環境検出 - より柔軟な検出方法
+IS_RENDER = (
+    os.getenv("RENDER") == "true"
+    or "onrender.com" in os.getenv("RENDER_EXTERNAL_URL", "")
+    or os.getenv("RENDER_SERVICE_NAME") is not None
+    or "render" in os.getenv("HOSTNAME", "").lower()
+)
 
 # Streamlit Cloud環境検出
 IS_STREAMLIT_CLOUD = (
-    os.getenv('STREAMLIT_SHARING') == 'true' or 
-    'streamlit.io' in os.getenv('HOSTNAME', '') or
-    '/mount/src/' in str(current_dir)
+    os.getenv("STREAMLIT_SHARING") == "true"
+    or "streamlit.io" in os.getenv("HOSTNAME", "")
+    or "/mount/src/" in str(current_dir)
 )
 
 # 分析モジュールのインポート (エラーハンドリング付き)
 try:
     from src.analyzers.market_analyzer import MarketAnalyzer
-    from src.analyzers.success_analyzer import SuccessAnalyzer  
+    from src.analyzers.success_analyzer import SuccessAnalyzer
     from src.analyzers.data_quality_checker import DataQualityChecker
+
     ANALYZERS_AVAILABLE = True
 except ImportError as e:
     st.error(f"分析モジュールのインポートエラー: {e}")
@@ -53,13 +59,13 @@ AI_INSIGHTS_AVAILABLE = False
 try:
     if ANALYZERS_AVAILABLE:
         from src.analyzers.ai_insights_generator import AIInsightsGenerator
-        
+
         # APIキー確認
         if IS_STREAMLIT_CLOUD:
             api_key = st.secrets.get("api_keys", {}).get("gemini_api_key")
         else:
             api_key = os.getenv("GEMINI_API_KEY")
-            
+
         if api_key:
             AI_INSIGHTS_AVAILABLE = True
         else:
@@ -69,6 +75,7 @@ try:
 except ImportError as e:
     st.info(f"🤖 AI洞察機能: インポートエラー {e}")
 
+
 # デモ用AI洞察生成関数
 def generate_demo_insights(data_summary: str, section: str) -> str:
     """デモ用AI洞察（固定メッセージ）"""
@@ -76,9 +83,10 @@ def generate_demo_insights(data_summary: str, section: str) -> str:
         "market": "🎮 市場概況: インディーゲーム市場は多様性に富み、低価格帯ゲームが主流を占めています。プラットフォーム対応とユーザーレビューの質が成功の鍵となっています。",
         "genre": "🎯 ジャンル分析: Actionジャンルが最も競争が激しく、Adventure・Casualジャンルにニッチな機会があります。複合ジャンルのゲームが高い評価を得る傾向があります。",
         "pricing": "💰 価格戦略: 中価格帯（$10-30）が最適なスイートスポットです。無料ゲームは高いダウンロード数を獲得できますが、収益化に課題があります。",
-        "comprehensive": "📈 総合評価: インディーゲーム市場は創造性とユーザーエンゲージメントが重視される環境です。データドリブンな開発戦略が成功確率を高めます。"
+        "comprehensive": "📈 総合評価: インディーゲーム市場は創造性とユーザーエンゲージメントが重視される環境です。データドリブンな開発戦略が成功確率を高めます。",
     }
     return demo_insights.get(section, "🤖 AI分析データを処理中です...")
+
 
 warnings.filterwarnings("ignore")
 
@@ -99,36 +107,43 @@ st.set_page_config(
 def load_demo_data():
     """Streamlit Cloud用デモデータ生成"""
     np.random.seed(42)  # 再現性のため
-    
+
     # サンプルデータ生成
     demo_data = {
-        'app_id': range(1, 549),
-        'name': [f'Demo Game {i}' for i in range(1, 549)],
-        'type': ['game'] * 548,
-        'is_free': np.random.choice([True, False], 548, p=[0.3, 0.7]),
-        'price_final': np.random.exponential(1500, 548),
-        'price_usd': np.random.exponential(15, 548),
-        'release_date': pd.date_range('2020-01-01', periods=548, freq='D'),
-        'platforms_windows': np.random.choice([True, False], 548, p=[0.9, 0.1]),
-        'platforms_mac': np.random.choice([True, False], 548, p=[0.6, 0.4]),
-        'platforms_linux': np.random.choice([True, False], 548, p=[0.5, 0.5]),
-        'platform_count': np.random.randint(1, 4, 548),
-        'positive_reviews': np.random.poisson(100, 548),
-        'negative_reviews': np.random.poisson(20, 548),
-        'total_reviews': lambda x: x['positive_reviews'] + x['negative_reviews'],
-        'rating': np.random.beta(8, 2, 548) * 100,  # 80%平均の評価
-        'is_indie': [True] * 548,
-        'primary_genre': np.random.choice(['Action', 'Adventure', 'Casual', 'RPG', 'Strategy'], 548),
-        'primary_developer': [f'Developer {i%50}' for i in range(548)],
-        'primary_publisher': [f'Publisher {i%30}' for i in range(548)],
-        'price_category': np.random.choice(['無料', '低価格', '中価格', 'プレミアム'], 548, p=[0.3, 0.4, 0.2, 0.1])
+        "app_id": range(1, 549),
+        "name": [f"Demo Game {i}" for i in range(1, 549)],
+        "type": ["game"] * 548,
+        "is_free": np.random.choice([True, False], 548, p=[0.3, 0.7]),
+        "price_final": np.random.exponential(1500, 548),
+        "price_usd": np.random.exponential(15, 548),
+        "release_date": pd.date_range("2020-01-01", periods=548, freq="D"),
+        "platforms_windows": np.random.choice([True, False], 548, p=[0.9, 0.1]),
+        "platforms_mac": np.random.choice([True, False], 548, p=[0.6, 0.4]),
+        "platforms_linux": np.random.choice([True, False], 548, p=[0.5, 0.5]),
+        "platform_count": np.random.randint(1, 4, 548),
+        "positive_reviews": np.random.poisson(100, 548),
+        "negative_reviews": np.random.poisson(20, 548),
+        "total_reviews": lambda x: x["positive_reviews"] + x["negative_reviews"],
+        "rating": np.random.beta(8, 2, 548) * 100,  # 80%平均の評価
+        "is_indie": [True] * 548,
+        "primary_genre": np.random.choice(
+            ["Action", "Adventure", "Casual", "RPG", "Strategy"], 548
+        ),
+        "primary_developer": [f"Developer {i%50}" for i in range(548)],
+        "primary_publisher": [f"Publisher {i%30}" for i in range(548)],
+        "price_category": np.random.choice(
+            ["無料", "低価格", "中価格", "プレミアム"], 548, p=[0.3, 0.4, 0.2, 0.1]
+        ),
     }
-    
+
     df = pd.DataFrame(demo_data)
-    df['total_reviews'] = df['positive_reviews'] + df['negative_reviews']
-    df['positive_percentage'] = (df['positive_reviews'] / df['total_reviews'] * 100).fillna(0)
-    
+    df["total_reviews"] = df["positive_reviews"] + df["negative_reviews"]
+    df["positive_percentage"] = (
+        df["positive_reviews"] / df["total_reviews"] * 100
+    ).fillna(0)
+
     return df
+
 
 # キャッシング設定（キャッシュ無効化）
 def get_cached_data():
@@ -189,18 +204,34 @@ st.markdown(
 )
 
 
-
 @st.cache_data(ttl=60)  # 1分でキャッシュ期限切れ
 def load_data():
     """データの読み込み（キャッシュ機能付き）- Streamlit Cloud対応"""
-    
+
     # データベース接続設定の取得
     db_config = None
-    
+
     try:
         if IS_RENDER:
-            # Render環境
-            if os.getenv("POSTGRES_HOST"):
+            # Render環境 - DATABASE_URLを優先的に使用
+            database_url = os.getenv("DATABASE_URL")
+            if database_url:
+                # DATABASE_URL形式をパース
+                from urllib.parse import urlparse
+
+                parsed_url = urlparse(database_url)
+                db_config = {
+                    "host": parsed_url.hostname,
+                    "port": parsed_url.port or 5432,
+                    "database": parsed_url.path[1:],  # '/'を除去
+                    "user": parsed_url.username,
+                    "password": parsed_url.password,
+                }
+                st.info("🔗 Render PostgreSQL データベース接続中... (DATABASE_URL)")
+            elif (
+                os.getenv("POSTGRES_HOST") and os.getenv("POSTGRES_HOST") != "postgres"
+            ):
+                # 個別環境変数（postgresホスト名以外）
                 db_config = {
                     "host": os.getenv("POSTGRES_HOST"),
                     "port": int(os.getenv("POSTGRES_PORT", 5432)),
@@ -208,15 +239,17 @@ def load_data():
                     "user": os.getenv("POSTGRES_USER", "steam_user"),
                     "password": os.getenv("POSTGRES_PASSWORD"),
                 }
-                st.info("🔗 Render PostgreSQL データベース接続中...")
+                st.info("🔗 Render PostgreSQL データベース接続中... (環境変数)")
             else:
                 # Render環境でDB未設定 → デモモード
                 st.warning("🌟 デモモード: サンプルデータを表示しています")
-                st.caption("💡 実際のデータを表示するには、Render環境変数でデータベース設定を行ってください")
+                st.caption(
+                    "💡 実際のデータを表示するには、Render環境変数でDATABASE_URLまたはPostgreSQL設定を行ってください"
+                )
                 return load_demo_data()
         elif IS_STREAMLIT_CLOUD:
             # Streamlit Cloud環境
-            if 'database' in st.secrets:
+            if "database" in st.secrets:
                 db_config = {
                     "host": st.secrets["database"]["host"],
                     "port": int(st.secrets["database"]["port"]),
@@ -228,7 +261,9 @@ def load_data():
             else:
                 # Secretsにデータベース設定なし → デモモード
                 st.warning("🌟 デモモード: サンプルデータを表示しています")
-                st.caption("💡 実際のデータを表示するには、Streamlit Secretsでデータベース設定を行ってください")
+                st.caption(
+                    "💡 実際のデータを表示するには、Streamlit Secretsでデータベース設定を行ってください"
+                )
                 return load_demo_data()
         else:
             # ローカル環境
@@ -243,17 +278,19 @@ def load_data():
             else:
                 # 環境変数なし → デモモード
                 st.warning("🌟 デモモード: サンプルデータを表示しています")
-                st.caption("💡 実際のデータを表示するには、.envファイルでデータベース設定を行ってください")
+                st.caption(
+                    "💡 実際のデータを表示するには、.envファイルでデータベース設定を行ってください"
+                )
                 return load_demo_data()
     except Exception as e:
         st.warning(f"🌟 デモモード: 設定読み込みエラー ({e})")
         return load_demo_data()
-    
+
     # データベース接続がない場合はデモモード
     if db_config is None:
         st.warning("🌟 デモモード: データベース設定がありません")
         return load_demo_data()
-    
+
     try:
         # SQLAlchemy エンジン作成（タイムアウト設定付き）
         engine = create_engine(
@@ -317,15 +354,15 @@ def load_data():
 
         # データ読み込み（実際のテーブルから）
         df = pd.read_sql_query(query, engine)
-        
+
         # 成功メッセージ
-        st.success(f"✅ データベースから {len(df)} 件のインディーゲームデータを読み込みました")
+        st.success(
+            f"✅ データベースから {len(df)} 件のインディーゲームデータを読み込みました"
+        )
 
         if len(df) == 0:
             st.warning("⚠️ データベースにインディーゲームデータが見つかりません。")
-            st.info(
-                "💡 Steam APIからインディーゲームデータを収集する必要があります。"
-            )
+            st.info("💡 Steam APIからインディーゲームデータを収集する必要があります。")
             return load_demo_data()  # データがない場合はデモモードに切り替え
 
         # データ型の調整
@@ -349,8 +386,31 @@ def load_data():
         return df
 
     except Exception as e:
-        st.warning(f"🌟 デモモード: データベース接続エラー ({str(e)[:100]}...)")
-        st.caption("💡 外部データベースに接続できないため、サンプルデータを表示しています")
+        st.error(f"❌ データベースエラー: {str(e)}")
+        st.warning(
+            f"🌟 デモモード: データベース接続エラーのため、サンプルデータを表示しています"
+        )
+        st.caption(
+            "💡 外部データベースに接続できないため、サンプルデータを表示しています"
+        )
+
+        # デバッグ情報表示
+        with st.expander("🔍 詳細エラー情報（デバッグ用）"):
+            st.text(f"エラー詳細: {str(e)}")
+            st.text(f"環境情報:")
+            st.text(f"  - IS_RENDER: {IS_RENDER}")
+            st.text(
+                f"  - DATABASE_URL: {'設定済み' if os.getenv('DATABASE_URL') else '未設定'}"
+            )
+            st.text(f"  - POSTGRES_HOST: {os.getenv('POSTGRES_HOST', '未設定')}")
+            st.text(f"データベース設定:")
+            st.text(f"  - Host: {db_config.get('host', 'N/A') if db_config else 'N/A'}")
+            st.text(f"  - Port: {db_config.get('port', 'N/A') if db_config else 'N/A'}")
+            st.text(
+                f"  - Database: {db_config.get('database', 'N/A') if db_config else 'N/A'}"
+            )
+            st.text(f"  - User: {db_config.get('user', 'N/A') if db_config else 'N/A'}")
+
         return load_demo_data()
 
 
@@ -587,24 +647,29 @@ def display_market_overview(df):
             with st.spinner("AI分析中..."):
                 try:
                     ai_generator = AIInsightsGenerator()
-                    
+
                     # データサマリー作成
                     data_summary = {
-                        'total_games': total_games,
-                        'free_games': len(free_games),
-                        'free_ratio': free_ratio,
-                        'avg_price_jpy': avg_price_jpy if avg_price_jpy > 0 else 0,
-                        'top_genres': df['primary_genre'].value_counts().head(3).index.tolist(),
-                        'review_ratio': reviewed_ratio
+                        "total_games": total_games,
+                        "free_games": len(free_games),
+                        "free_ratio": free_ratio,
+                        "avg_price_jpy": avg_price_jpy if avg_price_jpy > 0 else 0,
+                        "top_genres": df["primary_genre"]
+                        .value_counts()
+                        .head(3)
+                        .index.tolist(),
+                        "review_ratio": reviewed_ratio,
                     }
-                    
+
                     # AI洞察生成
-                    insight = ai_generator.generate_market_overview_insight(data_summary)
-                    
+                    insight = ai_generator.generate_market_overview_insight(
+                        data_summary
+                    )
+
                     # 洞察表示
                     st.markdown("### 🤖 AI市場分析")
                     st.info(insight)
-                    
+
                 except Exception as e:
                     st.error(f"AI洞察生成エラー: {e}")
                     st.caption("💡 Gemini APIキーが設定されているか確認してください")
@@ -615,7 +680,9 @@ def display_market_overview(df):
                 st.markdown("### 🤖 AI市場分析 (デモ)")
                 demo_insight = generate_demo_insights("", "market")
                 st.info(demo_insight)
-                st.caption("💡 実際の環境では、Gemini APIによる詳細な分析が提供されます")
+                st.caption(
+                    "💡 実際の環境では、Gemini APIによる詳細な分析が提供されます"
+                )
 
 
 def display_genre_analysis(df):
@@ -936,14 +1003,14 @@ def display_genre_analysis(df):
             with st.spinner("AI分析中..."):
                 try:
                     ai_generator = AIInsightsGenerator()
-                    
+
                     # ジャンル分析洞察生成
                     insight = ai_generator.generate_genre_analysis_insight(genre_stats)
-                    
+
                     # 洞察表示
                     st.markdown("### 🤖 AIジャンル分析")
                     st.info(insight)
-                    
+
                 except Exception as e:
                     st.error(f"AI洞察生成エラー: {e}")
                     st.caption("💡 Gemini APIキーが設定されているか確認してください")
@@ -954,7 +1021,9 @@ def display_genre_analysis(df):
                 st.markdown("### 🤖 AIジャンル分析 (デモ)")
                 demo_insight = generate_demo_insights("", "genre")
                 st.info(demo_insight)
-                st.caption("💡 実際の環境では、Gemini APIによる詳細な分析が提供されます")
+                st.caption(
+                    "💡 実際の環境では、Gemini APIによる詳細な分析が提供されます"
+                )
 
 
 def display_price_analysis(df):
@@ -962,7 +1031,7 @@ def display_price_analysis(df):
     st.markdown("## 💰 価格戦略分析")
 
     indie_df = df  # 全てインディーゲーム
-    
+
     # 価格帯分類関数（共通利用）
     def price_tier(price):
         if price == 0:
@@ -986,12 +1055,16 @@ def display_price_analysis(df):
         )
     with col2:
         # Indieジャンルを除外（既に全データがインディーゲームのため）
-        available_genres = [genre for genre in indie_df["primary_genre"].unique()[:10] if genre != "Indie"]
+        available_genres = [
+            genre
+            for genre in indie_df["primary_genre"].unique()[:10]
+            if genre != "Indie"
+        ]
         genre_filter = st.multiselect(
-            "ジャンルフィルター", 
+            "ジャンルフィルター",
             options=available_genres,
             default=[],
-            help="🎮 既に全データがインディーゲームです"
+            help="🎮 既に全データがインディーゲームです",
         )
     with col3:
         analysis_type = st.selectbox(
@@ -1063,20 +1136,20 @@ def display_price_analysis(df):
             if len(price_dist_sorted) > 0:
                 # パーセント順に並び替え（高い順）
                 price_dist_by_percent = price_dist_sorted.sort_values(ascending=False)
-                
+
                 fig_pie = px.pie(
                     values=price_dist_by_percent.values,
                     names=price_dist_by_percent.index,
                     title="価格帯別分布",
                 )
-                
+
                 fig_pie.update_traces(
-                    textposition='inside', 
-                    textinfo='percent',
-                    direction='clockwise',
+                    textposition="inside",
+                    textinfo="percent",
+                    direction="clockwise",
                     sort=False,
                     rotation=0,  # 0度（3時方向）からスタート
-                    textfont_size=12
+                    textfont_size=12,
                 )
             else:
                 # フォールバック：元の順序で表示
@@ -1086,13 +1159,13 @@ def display_price_analysis(df):
                     title="価格帯別分布",
                 )
                 fig_pie.update_traces(
-                    textposition='inside', 
-                    textinfo='percent',
-                    direction='clockwise',
+                    textposition="inside",
+                    textinfo="percent",
+                    direction="clockwise",
                     sort=False,
-                    rotation=0
+                    rotation=0,
                 )
-            
+
             fig_pie.update_layout(height=400)
             st.plotly_chart(fig_pie, use_container_width=True)
 
@@ -1323,31 +1396,57 @@ def display_price_analysis(df):
             with st.spinner("AI分析中..."):
                 try:
                     ai_generator = AIInsightsGenerator()
-                    
+
                     # 価格データサマリー作成
                     # 価格帯分類を動的に作成
                     filtered_df_temp = filtered_df.copy()
-                    filtered_df_temp["price_tier"] = filtered_df_temp["price_usd"].apply(price_tier)
-                    price_counts = filtered_df_temp['price_tier'].value_counts()
+                    filtered_df_temp["price_tier"] = filtered_df_temp[
+                        "price_usd"
+                    ].apply(price_tier)
+                    price_counts = filtered_df_temp["price_tier"].value_counts()
                     total = len(filtered_df)
-                    
+
                     price_data = {
-                        'free_percent': free_ratio,
-                        'budget_percent': (price_counts.get('低価格帯 (¥0-750)', 0) / total * 100) if total > 0 else 0,
-                        'mid_percent': (price_counts.get('中価格帯 (¥750-2,250)', 0) / total * 100) if total > 0 else 0,
-                        'premium_percent': (price_counts.get('高価格帯 (¥2,250-4,500)', 0) / total * 100) if total > 0 else 0,
-                        'luxury_percent': (price_counts.get('プレミアム (¥4,500+)', 0) / total * 100) if total > 0 else 0,
-                        'avg_price': avg_price_jpy if avg_price_jpy > 0 else 0,
-                        'price_rating_correlation': 'データ不足' if len(filtered_df[filtered_df['total_reviews'] > 0]) < 10 else '正の相関'
+                        "free_percent": free_ratio,
+                        "budget_percent": (
+                            (price_counts.get("低価格帯 (¥0-750)", 0) / total * 100)
+                            if total > 0
+                            else 0
+                        ),
+                        "mid_percent": (
+                            (price_counts.get("中価格帯 (¥750-2,250)", 0) / total * 100)
+                            if total > 0
+                            else 0
+                        ),
+                        "premium_percent": (
+                            (
+                                price_counts.get("高価格帯 (¥2,250-4,500)", 0)
+                                / total
+                                * 100
+                            )
+                            if total > 0
+                            else 0
+                        ),
+                        "luxury_percent": (
+                            (price_counts.get("プレミアム (¥4,500+)", 0) / total * 100)
+                            if total > 0
+                            else 0
+                        ),
+                        "avg_price": avg_price_jpy if avg_price_jpy > 0 else 0,
+                        "price_rating_correlation": (
+                            "データ不足"
+                            if len(filtered_df[filtered_df["total_reviews"] > 0]) < 10
+                            else "正の相関"
+                        ),
                     }
-                    
+
                     # AI洞察生成
                     insight = ai_generator.generate_price_strategy_insight(price_data)
-                    
+
                     # 洞察表示
                     st.markdown("### 🤖 AI価格戦略分析")
                     st.info(insight)
-                    
+
                 except Exception as e:
                     st.error(f"AI洞察生成エラー: {e}")
                     st.caption("💡 Gemini APIキーが設定されているか確認してください")
@@ -1358,7 +1457,9 @@ def display_price_analysis(df):
                 st.markdown("### 🤖 AI価格戦略分析 (デモ)")
                 demo_insight = generate_demo_insights("", "pricing")
                 st.info(demo_insight)
-                st.caption("💡 実際の環境では、Gemini APIによる詳細な分析が提供されます")
+                st.caption(
+                    "💡 実際の環境では、Gemini APIによる詳細な分析が提供されます"
+                )
 
 
 def display_insights_and_recommendations():
@@ -1413,28 +1514,30 @@ def display_insights_and_recommendations():
 
     # AI総合洞察セクション
     st.markdown("### 🤖 AI総合戦略洞察")
-    
+
     if st.button("🤖 総合AI洞察を生成", key="comprehensive_ai_insight"):
         if AI_INSIGHTS_AVAILABLE:
             with st.spinner("包括的なAI分析を実行中..."):
                 try:
                     ai_generator = AIInsightsGenerator()
-                    
+
                     # 成功要因データの準備（例示データ）
                     success_data = {
-                        'avg_reviews': 1500,
-                        'avg_rating': 0.85,
-                        'success_price_range': '¥750-2,250',
-                        'success_genres': ['Action', 'Adventure', 'Puzzle'],
-                        'platform_strategy': 'Windows + Mac対応'
+                        "avg_reviews": 1500,
+                        "avg_rating": 0.85,
+                        "success_price_range": "¥750-2,250",
+                        "success_genres": ["Action", "Adventure", "Puzzle"],
+                        "platform_strategy": "Windows + Mac対応",
                     }
-                    
+
                     # AI成功要因洞察生成
-                    insight = ai_generator.generate_success_factors_insight(success_data)
-                    
+                    insight = ai_generator.generate_success_factors_insight(
+                        success_data
+                    )
+
                     # 洞察表示
                     st.info(insight)
-                    
+
                 except Exception as e:
                     st.error(f"AI洞察生成エラー: {e}")
                     st.caption("💡 Gemini APIキーが設定されているか確認してください")
@@ -1443,7 +1546,9 @@ def display_insights_and_recommendations():
             with st.spinner("デモAI総合分析中..."):
                 time.sleep(2)  # 総合分析のため少し長め
                 st.info(generate_demo_insights("", "comprehensive"))
-                st.caption("💡 実際の環境では、Gemini APIによる詳細な総合分析が提供されます")
+                st.caption(
+                    "💡 実際の環境では、Gemini APIによる詳細な総合分析が提供されます"
+                )
 
 
 def main():
@@ -1499,9 +1604,8 @@ def main():
 
     # データ統計表示
     st.sidebar.success(f"✅ **{len(initial_df):,}件** のゲームデータを読み込み")
-    
+
     st.sidebar.info(f"📅 最終更新: {datetime.now().strftime('%H:%M:%S')}")
-    
 
     progress_bar.progress(100)
     status_text.text("✅ データ準備完了")

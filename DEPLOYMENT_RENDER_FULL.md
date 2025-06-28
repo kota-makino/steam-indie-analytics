@@ -108,22 +108,33 @@ RENDER: true
 # AI API設定
 GEMINI_API_KEY: AIzaSyDI5iFYRhPzgJZKC3Jom0-TqypovOWOlVY
 
-# データベース接続（自動設定）
-POSTGRES_HOST: [自動設定 - データベースサービスから]
-POSTGRES_PORT: [自動設定 - データベースサービスから]
-POSTGRES_DB: [自動設定 - データベースサービスから]
-POSTGRES_USER: [自動設定 - データベースサービスから]
-POSTGRES_PASSWORD: [自動設定 - データベースサービスから]
+# データベース接続（Renderで自動設定される）
+DATABASE_URL: [自動設定 - データベースサービスから]
+
+# オプション: 個別設定（通常は不要）
+# POSTGRES_HOST: [手動設定時のみ]
+# POSTGRES_PORT: 5432
+# POSTGRES_DB: [手動設定時のみ]
+# POSTGRES_USER: [手動設定時のみ]
+# POSTGRES_PASSWORD: [手動設定時のみ]
 ```
 
 **データベース接続の自動設定:**
 ```yaml
-# この設定によりRenderが自動的にDB情報を注入
-- key: POSTGRES_HOST
-  fromDatabase:
-    name: steam-analytics-db
-    property: host
+# RenderはDATABASE_URLを自動的に設定します
+# 手動設定は不要です
+DATABASE_URL: postgresql://user:password@host:port/database
+
+# ダッシュボードアプリケーションは以下の優先順位で接続します:
+# 1. DATABASE_URL（Render推奨）
+# 2. 個別環境変数（POSTGRES_HOST等）
+# 3. デモモード（データベース未設定時）
 ```
+
+**環境別データベース設定:**
+- **Render環境**: `DATABASE_URL`自動設定 → 実データベース接続
+- **ローカル環境**: Docker Compose → `postgres`ホスト名
+- **その他環境**: デモモード → サンプルデータ表示
 
 ### Step 5: 自動デプロイ実行
 
