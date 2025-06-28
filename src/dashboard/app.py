@@ -28,12 +28,13 @@ current_dir = Path(__file__).parent
 project_root = current_dir.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Render環境検出 - より柔軟な検出方法
+# Render環境検出 - DATABASE_URLベースの確実な検出
 IS_RENDER = (
     os.getenv("RENDER") == "true"
     or "onrender.com" in os.getenv("RENDER_EXTERNAL_URL", "")
     or os.getenv("RENDER_SERVICE_NAME") is not None
     or "render" in os.getenv("HOSTNAME", "").lower()
+    or (os.getenv("DATABASE_URL") and "postgresql://" in os.getenv("DATABASE_URL", ""))
 )
 
 # Streamlit Cloud環境検出
@@ -211,27 +212,35 @@ def load_data():
     # データベース接続設定の取得
     db_config = None
 
-    try:
-        if IS_RENDER:
-            # Render環境 - DATABASE_URLを優先的に使用
-            database_url = os.getenv("DATABASE_URL")
-            if database_url:
-                # DATABASE_URL形式をパース
-                from urllib.parse import urlparse
+    # デバッグ情報表示（削除予定）
+    with st.expander("🔍 環境デバッグ情報"):
+        st.text(f"IS_RENDER: {IS_RENDER}")
+        st.text(
+            f"DATABASE_URL: {'設定済み' if os.getenv('DATABASE_URL') else '未設定'}"
+        )
+        st.text(f"POSTGRES_HOST: {os.getenv('POSTGRES_HOST', '未設定')}")
+        st.text(f"RENDER env: {os.getenv('RENDER', '未設定')}")
+        st.text(f"HOSTNAME: {os.getenv('HOSTNAME', '未設定')}")
 
-                parsed_url = urlparse(database_url)
-                db_config = {
-                    "host": parsed_url.hostname,
-                    "port": parsed_url.port or 5432,
-                    "database": parsed_url.path[1:],  # '/'を除去
-                    "user": parsed_url.username,
-                    "password": parsed_url.password,
-                }
-                st.info("🔗 Render PostgreSQL データベース接続中... (DATABASE_URL)")
-            elif (
-                os.getenv("POSTGRES_HOST") and os.getenv("POSTGRES_HOST") != "postgres"
-            ):
-                # 個別環境変数（postgresホスト名以外）
+    try:
+        # DATABASE_URLが設定されている場合は最優先で使用
+        database_url = os.getenv("DATABASE_URL")
+        if database_url and "postgresql://" in database_url:
+            # DATABASE_URL形式をパース
+            from urllib.parse import urlparse
+
+            parsed_url = urlparse(database_url)
+            db_config = {
+                "host": parsed_url.hostname,
+                "port": parsed_url.port or 5432,
+                "database": parsed_url.path[1:],  # '/'を除去
+                "user": parsed_url.username,
+                "password": parsed_url.password,
+            }
+            st.info("🔗 PostgreSQL データベース接続中... (DATABASE_URL)")
+        elif IS_RENDER:
+            # Render環境で個別環境変数
+            if os.getenv("POSTGRES_HOST") and os.getenv("POSTGRES_HOST") != "postgres":
                 db_config = {
                     "host": os.getenv("POSTGRES_HOST"),
                     "port": int(os.getenv("POSTGRES_PORT", 5432)),
