@@ -17,14 +17,34 @@ from dotenv import load_dotenv
 # 環境変数の読み込み
 load_dotenv()
 
-# データベース接続設定
-DB_CONFIG = {
-    "host": os.getenv("POSTGRES_HOST", "postgres"),
-    "port": int(os.getenv("POSTGRES_PORT", 5432)),
-    "database": os.getenv("POSTGRES_DB", "steam_analytics"),
-    "user": os.getenv("POSTGRES_USER", "steam_user"),
-    "password": os.getenv("POSTGRES_PASSWORD", "steam_password"),
-}
+# データベース接続設定（DATABASE_URL優先対応）
+def get_db_config():
+    """データベース接続設定を取得"""
+    database_url = os.getenv("DATABASE_URL")
+    
+    if database_url and "postgresql://" in database_url:
+        # DATABASE_URLをパース
+        from urllib.parse import urlparse
+        parsed_url = urlparse(database_url)
+        
+        return {
+            "host": parsed_url.hostname,
+            "port": parsed_url.port or 5432,
+            "database": parsed_url.path[1:],  # '/'を除去
+            "user": parsed_url.username,
+            "password": parsed_url.password,
+        }
+    else:
+        # 個別環境変数から設定
+        return {
+            "host": os.getenv("POSTGRES_HOST", "postgres"),
+            "port": int(os.getenv("POSTGRES_PORT", 5432)),
+            "database": os.getenv("POSTGRES_DB", "steam_analytics"),
+            "user": os.getenv("POSTGRES_USER", "steam_user"),
+            "password": os.getenv("POSTGRES_PASSWORD", "steam_password"),
+        }
+
+DB_CONFIG = get_db_config()
 
 
 class IndieGameCollector:

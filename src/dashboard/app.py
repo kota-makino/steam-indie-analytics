@@ -250,11 +250,32 @@ def load_data():
                 }
                 st.info("🔗 Render PostgreSQL データベース接続中... (環境変数)")
             else:
-                # Render環境でDB未設定 → デモモード
+                # Render環境でDB未設定 → 設定手順表示
+                st.error("❌ Render環境でデータベース設定が見つかりません")
+                st.markdown("### 🔧 Renderデータベース設定手順")
+                st.markdown("""
+                **原因**: PostgreSQLサービスが接続されていません
+                
+                **解決方法**:
+                1. **PostgreSQLサービス作成** (未作成の場合)
+                   - Render Dashboard → New + → PostgreSQL
+                   - Name: `steam-analytics-db`
+                   - Database: `steam_analytics`
+                
+                2. **Webサービスにデータベース接続**
+                   - Web Service → Environment → Connect Database
+                   - 作成したPostgreSQLサービスを選択
+                   - `DATABASE_URL` が自動追加されます
+                
+                3. **手動設定** (代替案)
+                   - Environment Variables に以下を追加:
+                   - `POSTGRES_HOST`: [PostgreSQLサービスのhost]
+                   - `POSTGRES_USER`: [ユーザー名]
+                   - `POSTGRES_PASSWORD`: [パスワード]
+                   - `POSTGRES_DB`: [データベース名]
+                """)
+                
                 st.warning("🌟 デモモード: サンプルデータを表示しています")
-                st.caption(
-                    "💡 実際のデータを表示するには、Render環境変数でDATABASE_URLまたはPostgreSQL設定を行ってください"
-                )
                 return load_demo_data()
         elif IS_STREAMLIT_CLOUD:
             # Streamlit Cloud環境
@@ -1610,6 +1631,39 @@ def main():
         st.cache_data.clear()
         st.success("✅ キャッシュをクリアしました")
         st.rerun()
+    
+    # データ収集ボタン（Render環境のみ）
+    if IS_RENDER and st.sidebar.button("🎮 Steam データ収集実行"):
+        st.sidebar.warning("⚠️ この処理には10-15分かかります")
+        
+        if st.sidebar.button("🚀 実行確認", key="confirm_collection"):
+            with st.spinner("Steam データ収集中... (10-15分)"):
+                try:
+                    import subprocess
+                    import sys
+                    
+                    # データ収集スクリプト実行
+                    result = subprocess.run(
+                        [sys.executable, "/workspace/collect_indie_games.py"],
+                        capture_output=True,
+                        text=True,
+                        timeout=1800  # 30分タイムアウト
+                    )
+                    
+                    if result.returncode == 0:
+                        st.success("✅ データ収集完了！")
+                        st.info("📊 ページを再読み込みして新しいデータを確認してください")
+                        # キャッシュクリア
+                        st.cache_data.clear()
+                    else:
+                        st.error("❌ データ収集中にエラーが発生しました")
+                        if result.stderr:
+                            st.text(result.stderr[:500])
+                            
+                except subprocess.TimeoutExpired:
+                    st.error("⏰ データ収集がタイムアウトしました（30分制限）")
+                except Exception as e:
+                    st.error(f"❌ 予期しないエラー: {e}")
 
     # データ統計表示
     st.sidebar.success(f"✅ **{len(initial_df):,}件** のゲームデータを読み込み")

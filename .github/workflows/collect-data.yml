@@ -1,0 +1,29 @@
+name: Collect Steam Data for Render
+
+on:
+  workflow_dispatch:  # 手動実行
+  schedule:
+    - cron: '0 2 * * 0'  # 毎週日曜日 2:00 AM
+
+jobs:
+  collect-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Collect Steam indie games data
+      env:
+        DATABASE_URL: ${{ secrets.RENDER_DATABASE_URL }}
+      run: |
+        python collect_indie_games.py
+      timeout-minutes: 30
