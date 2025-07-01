@@ -95,6 +95,23 @@ warnings.filterwarnings("ignore")
 load_dotenv()
 
 
+def get_database_connection_string():
+    """統一されたデータベース接続文字列を取得"""
+    database_url = os.getenv("DATABASE_URL")
+
+    if database_url and "postgresql://" in database_url:
+        return database_url
+    else:
+        # 個別環境変数から構築
+        host = os.getenv("POSTGRES_HOST", "postgres")
+        port = os.getenv("POSTGRES_PORT", "5432")
+        database = os.getenv("POSTGRES_DB", "steam_analytics")
+        user = os.getenv("POSTGRES_USER", "steam_user")
+        password = os.getenv("POSTGRES_PASSWORD", "steam_password")
+
+        return f"postgresql://{user}:{password}@{host}:{port}/{database}"
+
+
 # ページ設定
 st.set_page_config(
     page_title="Steam インディーゲーム市場分析",
@@ -212,15 +229,16 @@ def load_data():
     # データベース接続設定の取得
     db_config = None
 
-    # デバッグ情報表示（削除予定）
-    with st.expander("🔍 環境デバッグ情報"):
-        st.text(f"IS_RENDER: {IS_RENDER}")
-        st.text(
-            f"DATABASE_URL: {'設定済み' if os.getenv('DATABASE_URL') else '未設定'}"
-        )
-        st.text(f"POSTGRES_HOST: {os.getenv('POSTGRES_HOST', '未設定')}")
-        st.text(f"RENDER env: {os.getenv('RENDER', '未設定')}")
-        st.text(f"HOSTNAME: {os.getenv('HOSTNAME', '未設定')}")
+    # デバッグ情報（本番では非表示）
+    if os.getenv("DEBUG_MODE") == "true":
+        with st.expander("🔍 環境デバッグ情報"):
+            st.text(f"IS_RENDER: {IS_RENDER}")
+            st.text(
+                f"DATABASE_URL: {'設定済み' if os.getenv('DATABASE_URL') else '未設定'}"
+            )
+            st.text(f"POSTGRES_HOST: {os.getenv('POSTGRES_HOST', '未設定')}")
+            st.text(f"RENDER env: {os.getenv('RENDER', '未設定')}")
+            st.text(f"HOSTNAME: {os.getenv('HOSTNAME', '未設定')}")
 
     try:
         # DATABASE_URLが設定されている場合は最優先で使用
@@ -253,7 +271,8 @@ def load_data():
                 # Render環境でDB未設定 → 設定手順表示
                 st.error("❌ Render環境でデータベース設定が見つかりません")
                 st.markdown("### 🔧 Renderデータベース設定手順")
-                st.markdown("""
+                st.markdown(
+                    """
                 **原因**: PostgreSQLサービスが接続されていません
                 
                 **解決方法**:
@@ -273,8 +292,9 @@ def load_data():
                    - `POSTGRES_USER`: [ユーザー名]
                    - `POSTGRES_PASSWORD`: [パスワード]
                    - `POSTGRES_DB`: [データベース名]
-                """)
-                
+                """
+                )
+
                 st.warning("🌟 デモモード: サンプルデータを表示しています")
                 return load_demo_data()
         elif IS_STREAMLIT_CLOUD:
@@ -491,10 +511,7 @@ def display_market_overview(df):
             try:
                 from sqlalchemy import create_engine, text
 
-                engine = create_engine(
-                    f"postgresql://{os.getenv('POSTGRES_USER', 'steam_user')}:{os.getenv('POSTGRES_PASSWORD', 'steam_password')}@"
-                    f"{os.getenv('POSTGRES_HOST', 'postgres')}:{int(os.getenv('POSTGRES_PORT', 5432))}/{os.getenv('POSTGRES_DB', 'steam_analytics')}"
-                )
+                engine = create_engine(get_database_connection_string())
 
                 multi_genre_overview_query = """
                 SELECT 
@@ -750,10 +767,7 @@ def display_genre_analysis(df):
         try:
             from sqlalchemy import create_engine, text
 
-            engine = create_engine(
-                f"postgresql://{os.getenv('POSTGRES_USER', 'steam_user')}:{os.getenv('POSTGRES_PASSWORD', 'steam_password')}@"
-                f"{os.getenv('POSTGRES_HOST', 'postgres')}:{int(os.getenv('POSTGRES_PORT', 5432))}/{os.getenv('POSTGRES_DB', 'steam_analytics')}"
-            )
+            engine = create_engine(get_database_connection_string())
 
             # 各ゲームの全ジャンルを取得するクエリ
             multi_genre_query = """
@@ -828,10 +842,7 @@ def display_genre_analysis(df):
     try:
         from sqlalchemy import create_engine, text
 
-        engine = create_engine(
-            f"postgresql://{os.getenv('POSTGRES_USER', 'steam_user')}:{os.getenv('POSTGRES_PASSWORD', 'steam_password')}@"
-            f"{os.getenv('POSTGRES_HOST', 'postgres')}:{int(os.getenv('POSTGRES_PORT', 5432))}/{os.getenv('POSTGRES_DB', 'steam_analytics')}"
-        )
+        engine = create_engine(get_database_connection_string())
 
         # フィルター条件をSQLクエリに適用
         price_condition = ""
@@ -1631,35 +1642,37 @@ def main():
         st.cache_data.clear()
         st.success("✅ キャッシュをクリアしました")
         st.rerun()
-    
+
     # データ収集ボタン（Render環境のみ）
     if IS_RENDER and st.sidebar.button("🎮 Steam データ収集実行"):
         st.sidebar.warning("⚠️ この処理には10-15分かかります")
-        
+
         if st.sidebar.button("🚀 実行確認", key="confirm_collection"):
             with st.spinner("Steam データ収集中... (10-15分)"):
                 try:
                     import subprocess
                     import sys
-                    
+
                     # データ収集スクリプト実行
                     result = subprocess.run(
                         [sys.executable, "/workspace/collect_indie_games.py"],
                         capture_output=True,
                         text=True,
-                        timeout=1800  # 30分タイムアウト
+                        timeout=1800,  # 30分タイムアウト
                     )
-                    
+
                     if result.returncode == 0:
                         st.success("✅ データ収集完了！")
-                        st.info("📊 ページを再読み込みして新しいデータを確認してください")
+                        st.info(
+                            "📊 ページを再読み込みして新しいデータを確認してください"
+                        )
                         # キャッシュクリア
                         st.cache_data.clear()
                     else:
                         st.error("❌ データ収集中にエラーが発生しました")
                         if result.stderr:
                             st.text(result.stderr[:500])
-                            
+
                 except subprocess.TimeoutExpired:
                     st.error("⏰ データ収集がタイムアウトしました（30分制限）")
                 except Exception as e:
