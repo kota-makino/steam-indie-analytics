@@ -72,6 +72,19 @@ def import_from_json():
         cursor.close()
         conn.close()
         
+        # 正規化処理も実行
+        print("🔄 正規化処理を実行中...")
+        try:
+            import subprocess
+            result = subprocess.run(["python", "normalize_render_data.py"], 
+                                  capture_output=True, text=True, timeout=300)
+            if result.returncode == 0:
+                print("✅ 正規化処理完了")
+            else:
+                print(f"⚠️ 正規化処理エラー: {result.stderr}")
+        except Exception as e:
+            print(f"⚠️ 正規化処理エラー: {e}")
+        
         return True
         
     except Exception as e:
