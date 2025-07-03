@@ -769,23 +769,21 @@ def display_genre_analysis(df):
 
             engine = create_engine(get_database_connection_string())
 
-            # 各ゲームの全ジャンルを取得するクエリ
+            # 各ゲームの全ジャンルを取得するクエリ（gamesテーブルから）
             multi_genre_query = """
             SELECT 
-                g.app_id,
-                g.name,
-                g.price_final / 100.0 AS price_usd,
-                g.positive_reviews,
-                g.negative_reviews,
-                g.total_reviews,
-                string_agg(DISTINCT genre.name, ', ' ORDER BY genre.name) AS all_genres
-            FROM games_normalized g
-            INNER JOIN game_genres gg ON g.app_id = gg.game_id
-            INNER JOIN genres genre ON gg.genre_id = genre.id
-            WHERE g.is_indie = true AND genre.name != 'Indie'
-            GROUP BY g.app_id, g.name, g.price_final, g.positive_reviews, g.negative_reviews, g.total_reviews
-            HAVING COUNT(DISTINCT genre.id) > 1
-            ORDER BY g.total_reviews DESC
+                app_id,
+                name,
+                COALESCE(price_final / 100.0, 0) AS price_usd,
+                COALESCE(positive_reviews, 0) as positive_reviews,
+                COALESCE(negative_reviews, 0) as negative_reviews,
+                COALESCE(total_reviews, 0) as total_reviews,
+                array_to_string(genres, ', ') AS all_genres
+            FROM games 
+            WHERE type = 'game' 
+                AND 'Indie' = ANY(genres)
+                AND array_length(genres, 1) > 1
+            ORDER BY COALESCE(total_reviews, 0) DESC
             LIMIT 100
             """
 
