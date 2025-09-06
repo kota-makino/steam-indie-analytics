@@ -77,14 +77,14 @@ options:
   # ディスクサイズ
   diskSizeGb: 20
   
-  # タイムアウト
-  timeout: '1200s'
-  
   # ログ設定
   logging: CLOUD_LOGGING_ONLY
   
   # 並列ビルドオプション
   substitutionOption: 'ALLOW_LOOSE'
+
+# グローバルタイムアウト設定
+timeout: '1200s'
 
 # IAM設定（Cloud Buildサービスアカウントに必要な権限）
 # - Cloud Run Developer
