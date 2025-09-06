@@ -23,7 +23,7 @@ COPY src/ ./src/
 COPY sql/ ./sql/
 COPY scripts/ ./scripts/
 COPY collect_indie_games.py .
-COPY steam_indie_games_20250630_095737.json .
+# COPY steam_indie_games_20250630_095737.json .  # Firestoreのみ使用のためコメントアウト
 COPY start.sh .
 
 # デバッグ: コピーしたファイルを確認
