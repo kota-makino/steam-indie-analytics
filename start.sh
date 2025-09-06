@@ -30,6 +30,14 @@ fi
 
 echo "🎮 Starting Streamlit dashboard..."
 
+# ファイル存在確認
+echo "📁 Current directory: $(pwd)"
+echo "📋 Files in current directory:"
+ls -la
+
+echo "📋 Files in src/dashboard/:"
+ls -la src/dashboard/ || echo "src/dashboard/ not found"
+
 # Streamlit起動
 exec streamlit run src/dashboard/app.py \
     --server.address=0.0.0.0 \
