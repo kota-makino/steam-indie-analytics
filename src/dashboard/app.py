@@ -163,6 +163,66 @@ def load_demo_data():
     return df
 
 
+def load_json_data():
+    """JSONファイルからデータを読み込む"""
+    import json
+    
+    try:
+        # JSONファイルパス（複数パターン対応）
+        json_paths = [
+            "steam_indie_games_20250630_095737.json",
+            "/app/steam_indie_games_20250630_095737.json",
+            "./steam_indie_games_20250630_095737.json"
+        ]
+        
+        data = None
+        used_path = None
+        
+        for json_path in json_paths:
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    used_path = json_path
+                    break
+            except FileNotFoundError:
+                continue
+        
+        if data is None:
+            st.error("❌ JSONデータファイルが見つかりません")
+            st.info("🌟 代替手段として、デモデータを表示します")
+            return load_demo_data()
+        
+        # DataFrameに変換
+        df = pd.DataFrame(data)
+        
+        # データ型変換
+        numeric_columns = ['price_initial', 'price_final', 'positive_reviews', 'negative_reviews', 'estimated_owners', 'peak_ccu']
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        # 日付変換
+        if 'release_date_text' in df.columns:
+            df['release_date'] = pd.to_datetime(df['release_date_text'], errors='coerce')
+        
+        # 価格をドル単位に変換（セントからドル）
+        if 'price_final' in df.columns:
+            df['price_usd'] = df['price_final'] / 100
+        
+        # 計算カラム
+        df['total_reviews'] = df.get('positive_reviews', 0) + df.get('negative_reviews', 0)
+        df['positive_percentage'] = (df.get('positive_reviews', 0) / (df['total_reviews'] + 1)) * 100
+        
+        st.success(f"✅ JSONデータを正常に読み込みました: {len(df)} ゲーム （{used_path}）")
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"❌ JSONデータ読み込みエラー: {str(e)}")
+        st.info("🌟 代替手段として、デモデータを表示します")
+        return load_demo_data()
+
+
 # キャッシング設定（キャッシュ無効化）
 def get_cached_data():
     """データ取得（キャッシュなし）"""
@@ -225,6 +285,17 @@ st.markdown(
 @st.cache_data(ttl=60)  # 1分でキャッシュ期限切れ
 def load_data():
     """データの読み込み（キャッシュ機能付き）- Streamlit Cloud対応"""
+    
+    # DATA_SOURCE環境変数をチェック（最優先）
+    data_source = os.getenv("DATA_SOURCE", "").lower()
+    if data_source == "json":
+        st.info("📄 JSONファイルからデータを読み込んでいます...")
+        return load_json_data()
+    
+    # Cloud Run環境でのJSON強制使用
+    if os.getenv("ENVIRONMENT") == "production" and not os.getenv("DATABASE_URL"):
+        st.info("☁️ Cloud Run環境: JSONデータを使用しています...")
+        return load_json_data()
 
     # データベース接続設定の取得
     db_config = None
