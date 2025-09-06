@@ -248,6 +248,58 @@ def load_json_data():
         return load_demo_data()
 
 
+def load_firestore_data():
+    """Firestoreからデータを読み込む"""
+    try:
+        from google.cloud import firestore
+        
+        # Firestoreクライアント初期化
+        db = firestore.Client()
+        
+        st.info("🔍 Firestoreに接続中...")
+        
+        # gamesコレクションから全ドキュメントを取得
+        games_ref = db.collection('games')
+        docs = games_ref.stream()
+        
+        games_data = []
+        for doc in docs:
+            game_data = doc.to_dict()
+            game_data['doc_id'] = doc.id  # ドキュメントIDを保持
+            games_data.append(game_data)
+        
+        if not games_data:
+            st.warning("⚠️ Firestoreにデータが見つかりません")
+            st.info("💡 scripts/import_to_firestore.py を実行してデータをインポートしてください")
+            return load_demo_data()
+        
+        # DataFrameに変換
+        df = pd.DataFrame(games_data)
+        
+        # メタデータ情報取得
+        try:
+            meta_doc = db.collection('metadata').document('import_info').get()
+            if meta_doc.exists:
+                meta_data = meta_doc.to_dict()
+                st.success(f"✅ Firestoreデータ読み込み完了: {len(df)} ゲーム")
+                st.info(f"📊 インポート日時: {meta_data.get('imported_at', 'unknown')}")
+            else:
+                st.success(f"✅ Firestoreデータ読み込み完了: {len(df)} ゲーム")
+        except Exception as e:
+            st.success(f"✅ Firestoreデータ読み込み完了: {len(df)} ゲーム")
+        
+        return df
+        
+    except ImportError:
+        st.error("❌ Firestore SDK がインストールされていません")
+        st.code("pip install google-cloud-firestore firebase-admin")
+        return load_demo_data()
+    except Exception as e:
+        st.error(f"❌ Firestore接続エラー: {str(e)}")
+        st.info("🌟 フォールバック: デモデータを表示します")
+        return load_demo_data()
+
+
 # キャッシング設定（キャッシュ無効化）
 def get_cached_data():
     """データ取得（キャッシュなし）"""
@@ -327,14 +379,22 @@ def load_data():
     
     # DATA_SOURCE環境変数をチェック（最優先）
     data_source = os.getenv("DATA_SOURCE", "").lower()
-    if data_source == "json":
+    if data_source == "firestore":
+        st.info("🔥 Firestoreデータベースからデータを読み込んでいます...")
+        return load_firestore_data()
+    elif data_source == "json":
         st.info("📄 JSONファイルからデータを読み込んでいます...")
         return load_json_data()
     
-    # Cloud Run環境でのJSON強制使用
-    if os.getenv("ENVIRONMENT") == "production" and not os.getenv("DATABASE_URL"):
-        st.info("☁️ Cloud Run環境: JSONデータを使用しています...")
-        return load_json_data()
+    # Cloud Run環境での優先順位: Firestore > JSON
+    if os.getenv("ENVIRONMENT") == "production":
+        # まずFirestoreを試行
+        try:
+            st.info("🔥 本番環境: Firestoreデータベースを試行中...")
+            return load_firestore_data()
+        except:
+            st.info("📄 フォールバック: JSONデータを使用します...")
+            return load_json_data()
 
     # データベース接続設定の取得
     db_config = None

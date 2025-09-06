@@ -49,3 +49,7 @@ rich==13.7.0                  # リッチなコンソール出力
 
 # AI & LLM APIs
 google-generativeai>=0.8.0    # Gemini API（分析コメント生成）
+
+# Firebase/Firestore
+google-cloud-firestore>=2.13.0  # Firestore NoSQLデータベース
+firebase-admin>=6.4.0           # Firebase Admin SDK
