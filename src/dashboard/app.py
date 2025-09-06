@@ -206,8 +206,19 @@ def load_json_data():
             st.info("🌟 代替手段として、デモデータを表示します")
             return load_demo_data()
         
-        # DataFrameに変換
-        df = pd.DataFrame(data)
+        # JSONの構造確認とデータ抽出
+        if isinstance(data, dict) and 'games' in data:
+            # 構造化されたJSON（export_info + games）
+            games_data = data['games']
+            export_info = data.get('export_info', {})
+            st.info(f"📊 データソース: {export_info.get('source', 'unknown')} ({export_info.get('timestamp', '')})")
+            df = pd.DataFrame(games_data)
+        elif isinstance(data, list):
+            # 直接ゲームリスト
+            df = pd.DataFrame(data)
+        else:
+            st.error("❌ 不明なJSONデータ構造です")
+            return load_demo_data()
         
         # データ型変換
         numeric_columns = ['price_initial', 'price_final', 'positive_reviews', 'negative_reviews', 'estimated_owners', 'peak_ccu']
@@ -248,22 +259,36 @@ def get_market_analysis():
     """キャッシュされた市場分析"""
     if not ANALYZERS_AVAILABLE:
         return {}
+    
+    # JSON/デモモード時は分析モジュール無効化（データベース接続回避）
+    data_source = os.getenv("DATA_SOURCE", "").lower()
+    if data_source == "json" or os.getenv("ENVIRONMENT") == "production":
+        st.info("📊 JSON/本番モード: 簡易分析機能を使用します")
+        return {}
+    
     try:
         analyzer = MarketAnalyzer()
         analyzer.load_data()
         return analyzer.get_market_overview()
-    except:
+    except Exception as e:
+        st.warning(f"⚠️ 市場分析エラー: {str(e)}")
         return {}
 
 
 @st.cache_data(ttl=600)
 def get_success_analysis():
     """キャッシュされた成功要因分析"""
+    # JSON/デモモード時は分析モジュール無効化（データベース接続回避）
+    data_source = os.getenv("DATA_SOURCE", "").lower()
+    if data_source == "json" or os.getenv("ENVIRONMENT") == "production":
+        return ""
+    
     try:
         analyzer = SuccessAnalyzer()
         analyzer.load_data()
         return analyzer.create_success_analysis_report()
-    except:
+    except Exception as e:
+        st.warning(f"⚠️ 成功分析エラー: {str(e)}")
         return ""
 
 
