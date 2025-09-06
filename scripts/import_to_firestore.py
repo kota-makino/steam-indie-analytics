@@ -111,14 +111,18 @@ def clean_game_data(game: dict) -> dict:
     cleaned['is_free'] = game.get('is_free', False)
     cleaned['short_description'] = game.get('short_description', '')
     
-    # 価格情報（整数値）
-    cleaned['price_initial'] = int(game.get('price_initial', 0))
-    cleaned['price_final'] = int(game.get('price_final', 0))
-    cleaned['price_usd'] = round(game.get('price_final', 0) / 100, 2)  # セントからドル
+    # 価格情報（整数値）- None値を0に変換
+    price_initial = game.get('price_initial') or 0
+    price_final = game.get('price_final') or 0
+    cleaned['price_initial'] = int(price_initial)
+    cleaned['price_final'] = int(price_final)
+    cleaned['price_usd'] = round(price_final / 100, 2)  # セントからドル
     
-    # レビュー情報
-    cleaned['positive_reviews'] = int(game.get('positive_reviews', 0))
-    cleaned['negative_reviews'] = int(game.get('negative_reviews', 0))
+    # レビュー情報 - None値を0に変換
+    positive_reviews = game.get('positive_reviews') or 0
+    negative_reviews = game.get('negative_reviews') or 0
+    cleaned['positive_reviews'] = int(positive_reviews)
+    cleaned['negative_reviews'] = int(negative_reviews)
     cleaned['total_reviews'] = cleaned['positive_reviews'] + cleaned['negative_reviews']
     
     if cleaned['total_reviews'] > 0:
@@ -145,9 +149,11 @@ def clean_game_data(game: dict) -> dict:
     if game.get('platforms_linux'): platforms.append('Linux')
     cleaned['platforms'] = platforms
     
-    # その他の数値データ
-    cleaned['estimated_owners'] = int(game.get('estimated_owners', 0))
-    cleaned['peak_ccu'] = int(game.get('peak_ccu', 0))
+    # その他の数値データ - None値を0に変換
+    estimated_owners = game.get('estimated_owners') or 0
+    peak_ccu = game.get('peak_ccu') or 0
+    cleaned['estimated_owners'] = int(estimated_owners)
+    cleaned['peak_ccu'] = int(peak_ccu)
     
     # Firestore用タイムスタンプ
     cleaned['created_at'] = firestore.SERVER_TIMESTAMP
