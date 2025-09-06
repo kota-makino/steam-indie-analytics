@@ -1,0 +1,57 @@
+# Docker ignore file for Steam Indie Analytics
+# Buildpackの自動検出を無効化
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.coverage
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+!CLAUDE.md
+
+# Development files
+.env*
+!.env.production
+.vscode/
+.idea/
+
+# Node modules (if any)
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# Docker volumes
+docker_volumes/
+
+# Notebooks (unless needed)
+notebooks/
+*.ipynb
+
+# Test files
+tests/
+test_*
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp

@@ -39,9 +39,7 @@ steps:
       '--min-instances', '$_MIN_INSTANCES',
       '--concurrency', '$_CONCURRENCY',
       '--timeout', '$_TIMEOUT',
-      '--set-env-vars', 'ENVIRONMENT=production,PORT=8080',
-      '--set-secrets', '/secrets/database-url=database-url:latest,/secrets/steam-api-key=steam-api-key:latest,/secrets/redis-password=redis-password:latest',
-      '--vpc-connector', '$_VPC_CONNECTOR',
+      '--set-env-vars', 'ENVIRONMENT=production,PORT=8080,DATA_SOURCE=json',
       '--ingress', 'all'
     ]
     id: 'deploy-service'
