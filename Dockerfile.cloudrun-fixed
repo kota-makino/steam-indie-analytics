@@ -1,0 +1,49 @@
+# Cloud Run用 Streamlit Dockerfile (修正版)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# システムパッケージのインストール
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python依存関係のインストール
+COPY requirements-production.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements-production.txt
+
+# アプリケーションファイルのコピー
+COPY src/ ./src/
+COPY sql/ ./sql/
+COPY scripts/ ./scripts/
+COPY collect_indie_games.py .
+COPY steam_indie_games_20250630_095737.json .
+
+# 非rootユーザーの作成
+RUN useradd --create-home --shell /bin/bash --uid 1000 app \
+    && chown -R app:app /app
+USER app
+
+# Streamlit設定
+ENV STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_SERVER_ENABLE_CORS=false \
+    STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false \
+    STREAMLIT_SERVER_MAX_UPLOAD_SIZE=10 \
+    STREAMLIT_THEME_BASE=light
+
+# Cloud Run用ポート設定
+ENV PORT=8080
+EXPOSE $PORT
+
+# ヘルスチェック
+HEALTHCHECK --interval=60s --timeout=30s --start-period=10s --retries=2 \
+    CMD curl -f http://localhost:$PORT || exit 1
+
+# 直接Streamlitを起動（gunicorn不使用）
+CMD streamlit run src/dashboard/app.py \
+    --server.address=0.0.0.0 \
+    --server.port=$PORT \
+    --server.headless=true \
+    --server.enableCORS=false \
+    --server.enableXsrfProtection=false
