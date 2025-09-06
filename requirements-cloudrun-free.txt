@@ -1,0 +1,19 @@
+# Cloud Run Free Tier Requirements
+# 無料枠用軽量依存関係
+
+# Core Streamlit App（必須）
+streamlit>=1.29.0              # ダッシュボード・Webアプリ
+plotly>=5.15.0                 # インタラクティブ可視化
+pandas>=2.0.0                  # データ操作・変換
+numpy>=1.24.0                  # 数値計算
+
+# Data Analysis（軽量版）
+seaborn>=0.12.0               # 統計可視化
+matplotlib>=3.7.0             # 基本グラフ作成
+
+# Utilities（最小構成）
+python-dotenv>=1.0.0          # 環境変数管理
+python-dateutil==2.8.2       # 日付解析・操作
+
+# Optional（軽量化）
+requests>=2.28.0              # HTTP リクエスト（オプション機能用）

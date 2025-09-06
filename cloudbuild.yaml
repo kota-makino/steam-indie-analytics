@@ -1,0 +1,107 @@
+# Cloud Build Configuration for Steam Indie Analytics
+# Google Cloud BuildでのCI/CD設定
+
+steps:
+  # ステップ1: Dockerイメージのビルド
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build', 
+      '-f', 'Dockerfile.cloudrun',
+      '-t', 'gcr.io/$PROJECT_ID/steam-indie-analytics:latest',
+      '-t', 'gcr.io/$PROJECT_ID/steam-indie-analytics:$BUILD_ID',
+      '.'
+    ]
+    id: 'build-image'
+
+  # ステップ2: Container Registryにプッシュ
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/steam-indie-analytics:latest']
+    id: 'push-latest'
+    waitFor: ['build-image']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/steam-indie-analytics:$BUILD_ID']
+    id: 'push-build-id'
+    waitFor: ['build-image']
+
+  # ステップ3: Cloud Runサービスのデプロイ
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: [
+      'run', 'deploy', 'steam-indie-analytics',
+      '--image', 'gcr.io/$PROJECT_ID/steam-indie-analytics:latest',
+      '--region', '$_REGION',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--port', '8080',
+      '--memory', '$_MEMORY',
+      '--cpu', '$_CPU',
+      '--max-instances', '$_MAX_INSTANCES',
+      '--min-instances', '$_MIN_INSTANCES',
+      '--concurrency', '$_CONCURRENCY',
+      '--timeout', '$_TIMEOUT',
+      '--set-env-vars', 'ENVIRONMENT=production,PORT=8080',
+      '--set-secrets', '/secrets/database-url=database-url:latest,/secrets/steam-api-key=steam-api-key:latest,/secrets/redis-password=redis-password:latest',
+      '--vpc-connector', '$_VPC_CONNECTOR',
+      '--ingress', 'all'
+    ]
+    id: 'deploy-service'
+    waitFor: ['push-latest']
+
+  # ステップ4: デプロイメント確認とヘルスチェック
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: [
+      'run', 'services', 'describe', 'steam-indie-analytics',
+      '--region', '$_REGION',
+      '--format', 'value(status.url)'
+    ]
+    id: 'get-service-url'
+    waitFor: ['deploy-service']
+
+# 置換変数（Cloud Build実行時に設定）
+substitutions:
+  # デプロイ設定
+  _REGION: 'asia-northeast1'  # Tokyo region
+  _MEMORY: '2Gi'
+  _CPU: '1000m'
+  _MAX_INSTANCES: '10'
+  _MIN_INSTANCES: '0'
+  _CONCURRENCY: '80'
+  _TIMEOUT: '900s'
+  
+  # ネットワーク設定
+  _VPC_CONNECTOR: 'projects/$PROJECT_ID/locations/$_REGION/connectors/steam-analytics-vpc-connector'
+
+# ビルドオプション
+options:
+  # マシンタイプ（ビルド時間短縮）
+  machineType: 'E2_HIGHCPU_8'
+  
+  # ディスクサイズ
+  diskSizeGb: 20
+  
+  # タイムアウト
+  timeout: '1200s'
+  
+  # ログ設定
+  logging: CLOUD_LOGGING_ONLY
+  
+  # 並列ビルドオプション
+  substitutionOption: 'ALLOW_LOOSE'
+
+# IAM設定（Cloud Buildサービスアカウントに必要な権限）
+# - Cloud Run Developer
+# - Storage Admin (for Container Registry)
+# - Secret Manager Secret Accessor
+# - Compute Network User (for VPC)
+
+# タグとラベル
+tags: 
+  - 'steam-indie-analytics'
+  - 'production'
+  - 'streamlit-dashboard'
+
+# 成果物の保存
+artifacts:
+  images:
+    - 'gcr.io/$PROJECT_ID/steam-indie-analytics:latest'
+    - 'gcr.io/$PROJECT_ID/steam-indie-analytics:$BUILD_ID'

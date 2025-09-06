@@ -1,0 +1,46 @@
+# Cloud Run Free Tier Dockerfile for Steam Indie Analytics
+# 無料枠最適化版
+FROM python:3.11-slim
+
+# 作業ディレクトリ設定
+WORKDIR /app
+
+# システムパッケージのインストール（最小構成）
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# 軽量版依存関係のインストール
+COPY requirements-cloudrun-free.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements-cloudrun-free.txt
+
+# アプリケーションファイルのコピー（最小構成）
+COPY src/dashboard/app_standalone.py ./app.py
+COPY src/dashboard/components/ ./components/
+COPY src/dashboard/pages/ ./pages/
+COPY steam_indie_games_20250630_095737.json ./data.json
+
+# 非rootユーザー作成
+RUN useradd --create-home --shell /bin/bash --uid 1000 app \
+    && chown -R app:app /app
+USER app
+
+# Cloud Runの無料枠最適化設定
+ENV PORT=8080 \
+    STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_SERVER_ENABLE_CORS=false \
+    STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false \
+    STREAMLIT_THEME_BASE=light \
+    STREAMLIT_SERVER_MAX_UPLOAD_SIZE=5 \
+    DATA_SOURCE=local_json
+
+EXPOSE $PORT
+
+# 軽量ヘルスチェック
+HEALTHCHECK --interval=60s --timeout=15s --start-period=30s --retries=2 \
+  CMD curl -f http://localhost:$PORT || exit 1
+
+# 起動コマンド
+CMD streamlit run app.py --server.address 0.0.0.0 --server.port $PORT --server.headless true

@@ -1,0 +1,63 @@
+# Cloud Build Configuration for FREE deployment
+# 無料枠最適化版
+
+steps:
+  # ステップ1: 軽量Dockerイメージのビルド
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build', 
+      '-f', 'Dockerfile.cloudrun-free',
+      '-t', 'gcr.io/$PROJECT_ID/steam-indie-analytics-free:latest',
+      '.'
+    ]
+    id: 'build-image'
+
+  # ステップ2: Container Registryにプッシュ
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/steam-indie-analytics-free:latest']
+    id: 'push-image'
+    waitFor: ['build-image']
+
+  # ステップ3: Cloud Runサービスのデプロイ（無料枠設定）
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: [
+      'run', 'deploy', 'steam-indie-analytics-free',
+      '--image', 'gcr.io/$PROJECT_ID/steam-indie-analytics-free:latest',
+      '--region', 'us-central1',  # 無料枠対象リージョン
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--port', '8080',
+      '--memory', '512Mi',        # 無料枠内のメモリ
+      '--cpu', '1',              # 1 vCPU
+      '--max-instances', '3',     # 無料枠内の制限
+      '--min-instances', '0',     # コスト削減
+      '--concurrency', '10',      # 同時リクエスト数制限
+      '--timeout', '300s',        # 5分タイムアウト
+      '--set-env-vars', 'ENVIRONMENT=free,PORT=8080,DATA_SOURCE=local_json'
+    ]
+    id: 'deploy-service'
+    waitFor: ['push-image']
+
+# 無料枠用置換変数
+substitutions:
+  _REGION: 'us-central1'  # Always Free対象リージョン
+
+# ビルドオプション（無料枠最適化）
+options:
+  # 小さなマシンタイプ（コスト削減）
+  machineType: 'E2_HIGHCPU_4'
+  
+  # 最小ディスクサイズ
+  diskSizeGb: 10
+  
+  # 短いタイムアウト
+  timeout: '600s'
+  
+  # ログ設定
+  logging: CLOUD_LOGGING_ONLY
+
+# タグ
+tags: 
+  - 'steam-indie-analytics-free'
+  - 'portfolio'
+  - 'free-tier'
