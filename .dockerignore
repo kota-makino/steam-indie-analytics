@@ -55,3 +55,12 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# 必要なファイルを明示的に含める
+!src/
+!sql/
+!scripts/
+!requirements-production.txt
+!collect_indie_games.py
+!steam_indie_games_*.json
+!Dockerfile*
