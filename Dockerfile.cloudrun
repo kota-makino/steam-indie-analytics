@@ -23,6 +23,7 @@ COPY src/ ./src/
 COPY sql/ ./sql/
 COPY scripts/ ./scripts/
 COPY collect_indie_games.py .
+COPY steam_indie_games_20250630_095737.json .
 
 # 非rootユーザーの作成とセキュリティ設定
 RUN useradd --create-home --shell /bin/bash --uid 1000 app \

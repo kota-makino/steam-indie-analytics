@@ -175,6 +175,20 @@ def load_json_data():
             "./steam_indie_games_20250630_095737.json"
         ]
         
+        # デバッグ: ファイル検索状況を表示
+        st.info("🔍 JSONファイルを検索中...")
+        for path in json_paths:
+            exists = os.path.exists(path)
+            st.text(f"  {path}: {'✅ 存在' if exists else '❌ なし'}")
+        
+        # カレントディレクトリの内容を表示
+        current_files = os.listdir('.')
+        json_files = [f for f in current_files if f.endswith('.json')]
+        if json_files:
+            st.info(f"📁 カレントディレクトリ内のJSONファイル: {json_files}")
+        else:
+            st.warning("📁 カレントディレクトリにJSONファイルがありません")
+        
         data = None
         used_path = None
         
