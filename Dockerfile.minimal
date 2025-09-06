@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 必要最小限のパッケージ
+RUN pip install streamlit pandas plotly numpy google-cloud-firestore
+
+# アプリケーションファイルをコピー
+COPY src/dashboard/app.py ./app.py
+COPY steam_indie_games_20250630_095737.json .
+
+# 環境変数
+ENV PORT=8080
+ENV DATA_SOURCE=json
+ENV ENVIRONMENT=production
+
+# 実行
+EXPOSE 8080
+CMD streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false
