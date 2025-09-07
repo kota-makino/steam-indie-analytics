@@ -39,7 +39,7 @@ steps:
       '--min-instances', '$_MIN_INSTANCES',
       '--concurrency', '$_CONCURRENCY',
       '--timeout', '$_TIMEOUT',
-      '--set-env-vars', 'ENVIRONMENT=production,PORT=8080,DATA_SOURCE=json',
+      '--set-env-vars', 'ENVIRONMENT=production,PORT=8080,DATA_SOURCE=firestore',
       '--ingress', 'all'
     ]
     id: 'deploy-service'
