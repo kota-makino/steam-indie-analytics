@@ -328,10 +328,10 @@ def get_market_analysis():
     if not ANALYZERS_AVAILABLE:
         return {}
     
-    # JSON/デモモード時は分析モジュール無効化（データベース接続回避）
+    # Firestore/JSON/本番モード時は分析モジュール無効化（PostgreSQL接続回避）
     data_source = os.getenv("DATA_SOURCE", "").lower()
-    if data_source == "json" or os.getenv("ENVIRONMENT") == "production":
-        st.info("📊 JSON/本番モード: 簡易分析機能を使用します")
+    if data_source in ["json", "firestore"] or os.getenv("ENVIRONMENT") == "production":
+        st.info("📊 本番モード: PostgreSQL分析機能を無効化します")
         return {}
     
     try:
@@ -346,9 +346,9 @@ def get_market_analysis():
 @st.cache_data(ttl=600)
 def get_success_analysis():
     """キャッシュされた成功要因分析"""
-    # JSON/デモモード時は分析モジュール無効化（データベース接続回避）
+    # Firestore/JSON/本番モード時は分析モジュール無効化（PostgreSQL接続回避）
     data_source = os.getenv("DATA_SOURCE", "").lower()
-    if data_source == "json" or os.getenv("ENVIRONMENT") == "production":
+    if data_source in ["json", "firestore"] or os.getenv("ENVIRONMENT") == "production":
         return ""
     
     try:
