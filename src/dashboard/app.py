@@ -766,7 +766,7 @@ def display_market_overview(df):
                             color_continuous_scale="Blues",
                         )
                         fig_genre.update_layout(height=400, showlegend=False)
-                        st.plotly_chart(fig_genre, use_container_width=True)
+                        st.plotly_chart(fig_genre, width='stretch')
 
                         # 総計表示
                         total_multi = genre_df["count"].sum()
@@ -806,7 +806,7 @@ def display_market_overview(df):
                     color_continuous_scale="Blues",
                 )
                 fig_genre.update_layout(height=400, showlegend=False)
-                st.plotly_chart(fig_genre, use_container_width=True)
+                st.plotly_chart(fig_genre, width='stretch')
 
         with col2:
             st.markdown("#### 💰 価格カテゴリ分布")
@@ -879,7 +879,7 @@ def display_market_overview(df):
                     orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.05
                 ),
             )
-            st.plotly_chart(fig_price, use_container_width=True)
+            st.plotly_chart(fig_price, width='stretch')
 
             # 価格帯詳細を右側に表示（価格の安い順）
             st.markdown("**価格帯別詳細（安い順）:**")
@@ -1052,7 +1052,7 @@ def display_genre_analysis(df):
                     lambda x: f"${x:.2f}" if x > 0 else "Free"
                 )
 
-                st.dataframe(display_multi_df.head(20), use_container_width=True)
+                st.dataframe(display_multi_df.head(20), width='stretch')
 
                 # ジャンル組み合わせ分析
                 st.markdown("#### 📊 人気ジャンル組み合わせ")
@@ -1066,7 +1066,7 @@ def display_genre_analysis(df):
                     labels={"x": "ゲーム数", "y": "ジャンル組み合わせ"},
                 )
                 fig_combo.update_layout(height=400)
-                st.plotly_chart(fig_combo, use_container_width=True)
+                st.plotly_chart(fig_combo, width='stretch')
 
                 # 複数ジャンル表示の場合はここで処理終了
                 return
@@ -1142,7 +1142,7 @@ def display_genre_analysis(df):
         )
         fig_genre.update_traces(texttemplate="%{text}", textposition="outside")
         fig_genre.update_layout(height=400, showlegend=False)
-        st.plotly_chart(fig_genre, use_container_width=True)
+        st.plotly_chart(fig_genre, width='stretch')
 
     with col2:
         st.markdown("### 📊 ジャンル別レビュー数分布")
@@ -1160,7 +1160,7 @@ def display_genre_analysis(df):
         )
         fig_reviews.update_traces(texttemplate="%{text:,.0f}", textposition="outside")
         fig_reviews.update_layout(height=400, showlegend=False)
-        st.plotly_chart(fig_reviews, use_container_width=True)
+        st.plotly_chart(fig_reviews, width='stretch')
 
     # 詳細データテーブル
     st.markdown("### 📋 詳細統計テーブル")
@@ -1183,7 +1183,7 @@ def display_genre_analysis(df):
         lambda x: f"{x:,.0f}"
     )
 
-    st.dataframe(display_stats, use_container_width=True)
+    st.dataframe(display_stats, width='stretch')
 
     # ジャンル分析インサイト
     st.markdown("### 💡 ジャンル分析インサイト")
@@ -1327,7 +1327,7 @@ def display_price_analysis(df):
                 color_discrete_sequence=["#1f77b4"],
             )
             fig_hist.update_layout(height=400)
-            st.plotly_chart(fig_hist, use_container_width=True)
+            st.plotly_chart(fig_hist, width='stretch')
 
         with col2:
             st.markdown("### 🥧 価格帯別割合")
@@ -1385,7 +1385,7 @@ def display_price_analysis(df):
                 )
 
             fig_pie.update_layout(height=400)
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, width='stretch')
 
     elif analysis_type == "価格vs評価":
         st.markdown("### 📈 価格 vs 評価 相関分析")
@@ -1437,7 +1437,7 @@ def display_price_analysis(df):
                     },
                 )
                 fig_scatter.update_layout(height=500)
-                st.plotly_chart(fig_scatter, use_container_width=True)
+                st.plotly_chart(fig_scatter, width='stretch')
 
             with col2:
                 # 価格帯別評価
@@ -1468,7 +1468,7 @@ def display_price_analysis(df):
                     labels={"price_tier": "価格帯", "rating": "評価率"},
                 )
                 fig_box.update_layout(height=500)
-                st.plotly_chart(fig_box, use_container_width=True)
+                st.plotly_chart(fig_box, width='stretch')
         else:
             st.warning("レビューデータがあるゲームが見つかりません。")
 
@@ -1547,7 +1547,7 @@ def display_price_analysis(df):
                     color_continuous_scale="Viridis",
                 )
                 fig_compare.update_layout(height=400)
-                st.plotly_chart(fig_compare, use_container_width=True)
+                st.plotly_chart(fig_compare, width='stretch')
 
             with col2:
                 st.markdown("### 📊 価格帯別詳細統計")
@@ -1563,7 +1563,7 @@ def display_price_analysis(df):
                 display_tier_stats["平均レビュー数"] = display_tier_stats[
                     "平均レビュー数"
                 ].apply(lambda x: f"{x:,.0f}")
-                st.dataframe(display_tier_stats, use_container_width=True)
+                st.dataframe(display_tier_stats, width='stretch')
         else:
             st.warning("分析に十分なデータがありません。")
 
