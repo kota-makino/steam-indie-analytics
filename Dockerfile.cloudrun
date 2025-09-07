@@ -26,10 +26,7 @@ COPY collect_indie_games.py .
 # COPY steam_indie_games_20250630_095737.json .  # Firestoreのみ使用のためコメントアウト
 COPY start.sh .
 
-# デバッグ: コピーしたファイルを確認
-RUN ls -la steam_indie_games_*.json || echo "JSONファイルが見つかりません"
-RUN ls -la src/dashboard/ || echo "src/dashboard/ not found"
-RUN ls -la src/dashboard/app.py || echo "app.py not found"
+# Firestoreのみ使用のためJSONファイルチェックは不要
 
 # 非rootユーザーの作成とセキュリティ設定
 RUN useradd --create-home --shell /bin/bash --uid 1000 app \
