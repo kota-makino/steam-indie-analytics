@@ -1899,7 +1899,8 @@ def main():
     if selected_section == "市場概要":
         display_market_overview(initial_df)
     elif selected_section == "ジャンル分析":
-        display_genre_analysis(initial_df)
+        # display_genre_analysis(initial_df)  # 一時的に無効化
+        st.info("🏷️ ジャンル分析は現在調整中です")
     elif selected_section == "価格分析":
         display_price_analysis(initial_df)
     elif selected_section == "洞察・推奨事項":
