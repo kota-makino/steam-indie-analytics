@@ -780,33 +780,33 @@ def display_market_overview(df):
                 # フォールバック: デモデータ生成
                 show_info = st.session_state.get("show_announcements", False)
                 if show_info:
-                    st.info("💡 ジャンルデータが不完全のため、サンプルデータを表示")
-                genre_counts = pd.Series({
-                    'Action': 150,
-                    'Adventure': 120,
-                    'Casual': 100,
-                    'RPG': 80,
-                    'Strategy': 70,
-                    'Puzzle': 60,
-                    'Simulation': 50,
-                    'Racing': 30,
-                    'Sports': 25,
-                    'Fighting': 20
-                }, name='count')
+                    st.error(f"💡 ジャンル処理エラー: {str(e)}")
+                    st.write("🔍 デバッグ: DataFrame columns:", list(df.columns))
+                    st.write("🔍 デバッグ: DataFrame shape:", df.shape)
+                    if len(df) > 0:
+                        st.write("🔍 デバッグ: Sample data:", df.iloc[0].to_dict())
+                else:
+                    # primary_genreを使ったシンプルなジャンル分布を試行
+                    if 'primary_genre' in df.columns:
+                        simple_genre_counts = df['primary_genre'].value_counts().head(10)
+                        if len(simple_genre_counts) > 0:
+                            import plotly.express as px
+                            fig_genre = px.bar(
+                                x=simple_genre_counts.values,
+                                y=simple_genre_counts.index,
+                                orientation="h",
+                                title="ジャンル分布（Firestore実データ）",
+                                labels={"x": "ゲーム数", "y": "ジャンル"}
+                            )
+                            fig_genre.update_layout(height=400)
+                            st.plotly_chart(fig_genre, width='stretch')
+                            st.caption(f"総計: {simple_genre_counts.sum():,}件")
+                        else:
+                            st.warning("ジャンルデータが見つかりません")
+                    else:
+                        st.warning("primary_genreカラムが見つかりません")
 
-                import plotly.express as px
-
-                fig_genre = px.bar(
-                    x=genre_counts.values,
-                    y=genre_counts.index,
-                    orientation="h",
-                    title="トップ10ジャンル",
-                    labels={"x": "ゲーム数", "y": "ジャンル"},
-                    color=genre_counts.values,
-                    color_continuous_scale="Blues",
-                )
-                fig_genre.update_layout(height=400, showlegend=False)
-                st.plotly_chart(fig_genre, width='stretch')
+# サンプルデータ表示コードを削除
 
         with col2:
             st.markdown("#### 💰 価格カテゴリ分布")
