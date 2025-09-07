@@ -722,91 +722,43 @@ def display_market_overview(df):
 
         with col1:
             st.markdown("#### 🏷️ ジャンル分布")
-
-            # Firestoreデータから直接ジャンル分布を取得
-            try:
-                # デバッグ情報を表示
-                show_info = st.session_state.get("show_announcements", False)
+            
+            # 常にデバッグ情報を表示（システム情報ON時）
+            show_info = st.session_state.get("show_announcements", False)
+            if show_info:
+                st.write("🔍 デバッグモード開始")
+                st.write(f"🔍 データ件数: {len(df)}件")
+                st.write(f"🔍 カラム: {list(df.columns)}")
+                if len(df) > 0:
+                    sample = df.iloc[0]
+                    st.write(f"🔍 サンプルゲーム: {sample.get('name', 'Unknown')}")
+                    st.write(f"🔍 genres値: {sample.get('genres', 'なし')}")
+                    st.write(f"🔍 primary_genre値: {sample.get('primary_genre', 'なし')}")
+            
+            # シンプルなprimary_genreベースのジャンル分布
+            if 'primary_genre' in df.columns:
+                genre_counts = df['primary_genre'].value_counts().head(10)
                 if show_info:
-                    st.write(f"🔍 データ確認: {len(df)}件のゲーム")
-                    sample_game = df.iloc[0] if len(df) > 0 else None
-                    if sample_game is not None:
-                        st.write(f"サンプルゲーム genres: {sample_game.get('genres', 'なし')}")
+                    st.write(f"🔍 primary_genre統計: {len(genre_counts)}ジャンル")
                 
-                # Firestoreデータからジャンル情報を抽出
-                genre_counts = {}
-                for _, game in df.iterrows():
-                    genres = game.get('genres', [])
-                    if isinstance(genres, list) and genres:
-                        for genre in genres:
-                            if genre and genre != 'Indie':  # Indieジャンルは除外、空文字も除外
-                                genre_counts[genre] = genre_counts.get(genre, 0) + 1
-                
-                if show_info:
-                    st.write(f"🔍 検出されたジャンル数: {len(genre_counts)}")
-                    if genre_counts:
-                        top_3 = list(sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:3])
-                        st.write(f"上位3ジャンル: {top_3}")
-                
-                # トップ10ジャンルを取得
-                if genre_counts:
-                    sorted_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:10]
-                    genre_df = pd.DataFrame(sorted_genres, columns=['genre_name', 'count'])
-                    
-                    if len(genre_df) > 0:
-                        import plotly.express as px
-
-                        fig_genre = px.bar(
-                            x=genre_df["count"],
-                            y=genre_df["genre_name"],
-                            orientation="h",
-                            title="トップ10ジャンル（複数ジャンル対応）",
-                            labels={"x": "ゲーム数", "y": "ジャンル"},
-                            color=genre_df["count"],
-                            color_continuous_scale="Blues",
-                        )
-                        fig_genre.update_layout(height=400, showlegend=False)
-                        st.plotly_chart(fig_genre, width='stretch')
-
-                        # 総計表示
-                        total_multi = genre_df["count"].sum()
-                        st.caption(f"総計: {total_multi:,}件（複数ジャンル重複あり）")
-                    else:
-                        st.warning("ジャンルデータを取得できませんでした")
+                if len(genre_counts) > 0:
+                    import plotly.express as px
+                    fig_genre = px.bar(
+                        x=genre_counts.values,
+                        y=genre_counts.index,
+                        orientation="h", 
+                        title="ジャンル分布（実データ）",
+                        labels={"x": "ゲーム数", "y": "ジャンル"}
+                    )
+                    fig_genre.update_layout(height=400)
+                    st.plotly_chart(fig_genre, width='stretch')
+                    st.caption(f"総計: {genre_counts.sum():,}件")
                 else:
-                    st.warning("ジャンルデータを取得できませんでした")
-
-            except Exception as e:
-                # フォールバック: デモデータ生成
-                show_info = st.session_state.get("show_announcements", False)
+                    st.warning("ジャンルデータが空です")
+            else:
+                st.error("primary_genreカラムが見つかりません")
                 if show_info:
-                    st.error(f"💡 ジャンル処理エラー: {str(e)}")
-                    st.write("🔍 デバッグ: DataFrame columns:", list(df.columns))
-                    st.write("🔍 デバッグ: DataFrame shape:", df.shape)
-                    if len(df) > 0:
-                        st.write("🔍 デバッグ: Sample data:", df.iloc[0].to_dict())
-                else:
-                    # primary_genreを使ったシンプルなジャンル分布を試行
-                    if 'primary_genre' in df.columns:
-                        simple_genre_counts = df['primary_genre'].value_counts().head(10)
-                        if len(simple_genre_counts) > 0:
-                            import plotly.express as px
-                            fig_genre = px.bar(
-                                x=simple_genre_counts.values,
-                                y=simple_genre_counts.index,
-                                orientation="h",
-                                title="ジャンル分布（Firestore実データ）",
-                                labels={"x": "ゲーム数", "y": "ジャンル"}
-                            )
-                            fig_genre.update_layout(height=400)
-                            st.plotly_chart(fig_genre, width='stretch')
-                            st.caption(f"総計: {simple_genre_counts.sum():,}件")
-                        else:
-                            st.warning("ジャンルデータが見つかりません")
-                    else:
-                        st.warning("primary_genreカラムが見つかりません")
-
-# サンプルデータ表示コードを削除
+                    st.write("利用可能なカラム:", list(df.columns))
 
         with col2:
             st.markdown("#### 💰 価格カテゴリ分布")
