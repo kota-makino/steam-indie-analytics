@@ -1127,9 +1127,11 @@ def display_genre_analysis(df):
         st.success(f"✅ 複数ジャンル対応: {len(genre_stats)}ジャンルを分析中")
 
     except Exception as e:
-        st.error(f"複数ジャンルデータ取得エラー: {e}")
+        # システム情報表示時のみエラーを表示
+        show_info = st.session_state.get("show_announcements", False)
+        if show_info:
+            st.info("💡 Firestore専用モード: シンプルなジャンル表示を使用します")
         # フォールバック: 従来のprimary_genre方式
-        st.info("💡 単一ジャンル表示にフォールバック")
 
         non_indie_df = filtered_df[filtered_df["primary_genre"] != "Indie"].copy()
 
