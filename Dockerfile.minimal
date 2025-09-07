@@ -7,11 +7,10 @@ RUN pip install streamlit pandas plotly numpy google-cloud-firestore
 
 # アプリケーションファイルをコピー
 COPY src/dashboard/app.py ./app.py
-COPY steam_indie_games_20250630_095737.json .
 
-# 環境変数
+# 環境変数（Firestore使用）
 ENV PORT=8080
-ENV DATA_SOURCE=json
+ENV DATA_SOURCE=firestore
 ENV ENVIRONMENT=production
 
 # 実行
