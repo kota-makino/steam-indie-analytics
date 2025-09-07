@@ -1,0 +1,13 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build', 
+      '-f', 'Dockerfile.minimal',
+      '-t', 'gcr.io/$PROJECT_ID/steam-indie-analytics:minimal',
+      '.'
+    ]
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/steam-indie-analytics:minimal']
+
+images:
+  - 'gcr.io/$PROJECT_ID/steam-indie-analytics:minimal'

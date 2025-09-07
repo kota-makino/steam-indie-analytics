@@ -1,0 +1,35 @@
+# 軽量版 Cloud Run Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 最小限のシステムパッケージ
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# 基本的なPython依存関係のみ
+COPY requirements-production.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir streamlit pandas plotly numpy
+
+# アプリケーションファイル
+COPY src/ ./src/
+COPY steam_indie_games_20250630_095737.json .
+
+# 環境設定
+ENV PORT=8080
+ENV STREAMLIT_SERVER_HEADLESS=true
+ENV STREAMLIT_SERVER_ENABLE_CORS=false
+ENV DATA_SOURCE=json
+ENV ENVIRONMENT=production
+
+# 非rootユーザー
+RUN useradd --create-home --uid 1000 app && chown -R app:app /app
+USER app
+
+EXPOSE 8080
+
+# シンプルなStreamlit起動
+CMD streamlit run src/dashboard/app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false

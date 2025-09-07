@@ -1,0 +1,58 @@
+# Cloud Run Dockerfile for Steam Indie Analytics
+FROM python:3.11-slim
+
+# 作業ディレクトリ設定
+WORKDIR /app
+
+# システムパッケージのインストール（Cloud Run最適化）
+RUN apt-get update && apt-get install -y \
+    curl \
+    postgresql-client \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Python依存関係のインストール
+COPY requirements-production.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements-production.txt
+
+# アプリケーションファイルのコピー
+COPY src/ ./src/
+COPY sql/ ./sql/
+COPY scripts/ ./scripts/
+COPY collect_indie_games.py .
+# COPY steam_indie_games_20250630_095737.json .  # Firestoreのみ使用のためコメントアウト
+COPY start.sh .
+
+# デバッグ: コピーしたファイルを確認
+RUN ls -la steam_indie_games_*.json || echo "JSONファイルが見つかりません"
+RUN ls -la src/dashboard/ || echo "src/dashboard/ not found"
+RUN ls -la src/dashboard/app.py || echo "app.py not found"
+
+# 非rootユーザーの作成とセキュリティ設定
+RUN useradd --create-home --shell /bin/bash --uid 1000 app \
+    && chown -R app:app /app \
+    && chmod +x /app/src/dashboard/app.py
+USER app
+
+# Cloud Runのポート設定（Cloud RunはPORTの環境変数を提供）
+ENV PORT=8080
+EXPOSE $PORT
+
+# ヘルスチェック（Cloud Run用）
+HEALTHCHECK --interval=60s --timeout=30s --start-period=10s --retries=2 \
+  CMD curl -f http://localhost:$PORT/_stcore/health || exit 1
+
+# Cloud Run最適化設定
+ENV STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_SERVER_ENABLE_CORS=false \
+    STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false \
+    STREAMLIT_SERVER_MAX_UPLOAD_SIZE=10 \
+    STREAMLIT_THEME_BASE=light \
+    DATA_SOURCE=firestore \
+    ENVIRONMENT=production
+
+# 起動コマンド（直接実行・絶対パス指定）
+CMD ["streamlit", "run", "/app/src/dashboard/app.py", "--server.address=0.0.0.0", "--server.port=8080", "--server.headless=true", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]
