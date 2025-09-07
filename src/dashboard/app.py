@@ -1064,11 +1064,10 @@ def display_genre_analysis(df):
             st.error(f"複数ジャンルデータの取得でエラーが発生しました: {e}")
             st.info("💡 単一ジャンル表示に切り替えて続行します。")
 
-    # 正規化データベースから全ジャンル情報を取得
+    # 正規化データベースから全ジャンル情報を取得（PostgreSQL無効化）
     try:
-        from sqlalchemy import create_engine, text
-
-        engine = create_engine(get_database_connection_string())
+        # PostgreSQL処理を完全スキップしてフォールバックに移行
+        raise Exception("PostgreSQL機能無効 - Firestoreのみ使用")
 
         # フィルター条件をSQLクエリに適用
         price_condition = ""
