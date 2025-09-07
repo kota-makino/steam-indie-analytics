@@ -725,14 +725,28 @@ def display_market_overview(df):
 
             # Firestoreデータから直接ジャンル分布を取得
             try:
+                # デバッグ情報を表示
+                show_info = st.session_state.get("show_announcements", False)
+                if show_info:
+                    st.write(f"🔍 データ確認: {len(df)}件のゲーム")
+                    sample_game = df.iloc[0] if len(df) > 0 else None
+                    if sample_game is not None:
+                        st.write(f"サンプルゲーム genres: {sample_game.get('genres', 'なし')}")
+                
                 # Firestoreデータからジャンル情報を抽出
                 genre_counts = {}
                 for _, game in df.iterrows():
                     genres = game.get('genres', [])
                     if isinstance(genres, list) and genres:
                         for genre in genres:
-                            if genre != 'Indie':  # Indieジャンルは除外
+                            if genre and genre != 'Indie':  # Indieジャンルは除外、空文字も除外
                                 genre_counts[genre] = genre_counts.get(genre, 0) + 1
+                
+                if show_info:
+                    st.write(f"🔍 検出されたジャンル数: {len(genre_counts)}")
+                    if genre_counts:
+                        top_3 = list(sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:3])
+                        st.write(f"上位3ジャンル: {top_3}")
                 
                 # トップ10ジャンルを取得
                 if genre_counts:
