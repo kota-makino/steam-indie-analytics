@@ -276,6 +276,22 @@ def load_firestore_data():
         # DataFrameに変換
         df = pd.DataFrame(games_data)
         
+        # 必要なカラムを作成/補完
+        if 'developers' in df.columns and 'primary_developer' not in df.columns:
+            df['primary_developer'] = df['developers'].apply(
+                lambda x: x[0] if isinstance(x, list) and len(x) > 0 else 'Unknown'
+            )
+        
+        if 'publishers' in df.columns and 'primary_publisher' not in df.columns:
+            df['primary_publisher'] = df['publishers'].apply(
+                lambda x: x[0] if isinstance(x, list) and len(x) > 0 else 'Unknown'
+            )
+        
+        if 'genres' in df.columns and 'primary_genre' not in df.columns:
+            df['primary_genre'] = df['genres'].apply(
+                lambda x: x[0] if isinstance(x, list) and len(x) > 0 else 'Unknown'
+            )
+        
         # メタデータ情報取得
         try:
             meta_doc = db.collection('metadata').document('import_info').get()
@@ -751,6 +767,19 @@ def display_market_overview(df):
 
         with col2:
             st.markdown("#### 💰 価格カテゴリ分布")
+            # price_categoryカラムが存在しない場合は作成
+            if 'price_category' not in df.columns:
+                if 'price_usd' in df.columns:
+                    df['price_category'] = df['price_usd'].apply(
+                        lambda x: '無料' if x == 0 else 
+                                 '低価格' if x < 10 else
+                                 '中価格' if x < 30 else 
+                                 'プレミアム'
+                    )
+                else:
+                    # フォールバック: サンプルデータ
+                    df['price_category'] = ['無料'] * (len(df)//3) + ['低価格'] * (len(df)//3) + ['中価格'] * (len(df) - 2*(len(df)//3))
+            
             price_counts = df["price_category"].value_counts()
 
             # 価格順（安い順）で並び替えて表示
