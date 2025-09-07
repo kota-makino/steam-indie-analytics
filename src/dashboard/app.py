@@ -1865,7 +1865,14 @@ def main():
     
     # 表示設定
     with st.sidebar.expander("⚙️ 表示設定"):
+        # 前回の状態を保存
+        prev_show_announcements = st.session_state.get("prev_show_announcements", False)
         show_announcements = st.checkbox("📢 システム情報を表示", value=False, key="show_announcements")
+        
+        # 状態が変更された場合はリロード
+        if show_announcements != prev_show_announcements:
+            st.session_state.prev_show_announcements = show_announcements
+            st.rerun()
 
     # キャッシュクリアボタン
     if st.sidebar.button("🔄 データ更新"):
