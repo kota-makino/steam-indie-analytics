@@ -723,51 +723,50 @@ def display_market_overview(df):
         with col1:
             st.markdown("#### 🏷️ ジャンル分布")
 
-            # 複数ジャンル対応でトップ10ジャンルを取得
+            # Firestoreデータから直接ジャンル分布を取得
             try:
-                from sqlalchemy import create_engine, text
+                # Firestoreデータからジャンル情報を抽出
+                genre_counts = {}
+                for _, game in df.iterrows():
+                    genres = game.get('genres', [])
+                    if isinstance(genres, list) and genres:
+                        for genre in genres:
+                            if genre != 'Indie':  # Indieジャンルは除外
+                                genre_counts[genre] = genre_counts.get(genre, 0) + 1
+                
+                # トップ10ジャンルを取得
+                if genre_counts:
+                    sorted_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+                    genre_df = pd.DataFrame(sorted_genres, columns=['genre_name', 'count'])
+                    
+                    if len(genre_df) > 0:
+                        import plotly.express as px
 
-                engine = create_engine(get_database_connection_string())
+                        fig_genre = px.bar(
+                            x=genre_df["count"],
+                            y=genre_df["genre_name"],
+                            orientation="h",
+                            title="トップ10ジャンル（複数ジャンル対応）",
+                            labels={"x": "ゲーム数", "y": "ジャンル"},
+                            color=genre_df["count"],
+                            color_continuous_scale="Blues",
+                        )
+                        fig_genre.update_layout(height=400, showlegend=False)
+                        st.plotly_chart(fig_genre, use_container_width=True)
 
-                multi_genre_overview_query = """
-                SELECT 
-                    genre.name AS genre_name,
-                    COUNT(DISTINCT g.app_id) AS count
-                FROM games_normalized g
-                INNER JOIN game_genres gg ON g.app_id = gg.game_id
-                INNER JOIN genres genre ON gg.genre_id = genre.id
-                WHERE g.is_indie = true AND genre.name != 'Indie'
-                GROUP BY genre.name
-                ORDER BY count DESC
-                LIMIT 10
-                """
-
-                genre_df = pd.read_sql_query(multi_genre_overview_query, engine)
-
-                if len(genre_df) > 0:
-                    import plotly.express as px
-
-                    fig_genre = px.bar(
-                        x=genre_df["count"],
-                        y=genre_df["genre_name"],
-                        orientation="h",
-                        title="トップ10ジャンル（複数ジャンル対応）",
-                        labels={"x": "ゲーム数", "y": "ジャンル"},
-                        color=genre_df["count"],
-                        color_continuous_scale="Blues",
-                    )
-                    fig_genre.update_layout(height=400, showlegend=False)
-                    st.plotly_chart(fig_genre, use_container_width=True)
-
-                    # 総計表示
-                    total_multi = genre_df["count"].sum()
-                    st.caption(f"総計: {total_multi:,}件（複数ジャンル重複あり）")
+                        # 総計表示
+                        total_multi = genre_df["count"].sum()
+                        st.caption(f"総計: {total_multi:,}件（複数ジャンル重複あり）")
+                    else:
+                        st.warning("ジャンルデータを取得できませんでした")
                 else:
                     st.warning("ジャンルデータを取得できませんでした")
 
             except Exception as e:
                 # フォールバック: デモデータ生成
-                st.info("💡 ジャンルデータが不完全のため、サンプルデータを表示")
+                show_info = st.session_state.get("show_announcements", False)
+                if show_info:
+                    st.info("💡 ジャンルデータが不完全のため、サンプルデータを表示")
                 genre_counts = pd.Series({
                     'Action': 150,
                     'Adventure': 120,
