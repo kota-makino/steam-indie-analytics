@@ -296,6 +296,21 @@ def load_firestore_data():
                 lambda x: x[0] if isinstance(x, list) and len(x) > 0 else 'Unknown'
             )
         
+        # platform_countカラムを作成（プラットフォーム対応数）
+        if 'platform_count' not in df.columns:
+            platform_cols = ['platforms_windows', 'platforms_mac', 'platforms_linux']
+            available_platforms = [col for col in platform_cols if col in df.columns]
+            if available_platforms:
+                df['platform_count'] = df[available_platforms].sum(axis=1)
+            else:
+                # platforms配列から計算
+                if 'platforms' in df.columns:
+                    df['platform_count'] = df['platforms'].apply(
+                        lambda x: len(x) if isinstance(x, list) else 1
+                    )
+                else:
+                    df['platform_count'] = 1  # デフォルト値
+        
         # メタデータ情報取得
         try:
             meta_doc = db.collection('metadata').document('import_info').get()
@@ -972,7 +987,7 @@ def display_genre_analysis(df):
     with col3:
         top_n = st.slider("表示ジャンル数", 5, 20, 10)
     with col4:
-        show_multi_genre = st.checkbox("複数ジャンル表示", value=False)
+        show_multi_genre = st.checkbox("複数ジャンル表示（現在無効）", value=False, disabled=True)
 
     # フィルタリング適用
     filtered_df = indie_df.copy()
@@ -981,34 +996,26 @@ def display_genre_analysis(df):
     elif price_filter == "無料のみ":
         filtered_df = filtered_df[filtered_df["is_free"] == True]
 
-    # 複数ジャンル表示の処理
+    # 複数ジャンル表示の処理（現在無効）
     multi_genre_df = None
-    if show_multi_genre:
-        # 複数ジャンルデータを取得（データベースから）
+    if False:  # show_multi_genre - 一時的に無効化
+        # 複数ジャンルデータを取得（Firestoreから直接処理）
         try:
-            from sqlalchemy import create_engine, text
-
-            engine = create_engine(get_database_connection_string())
-
-            # 各ゲームの全ジャンルを取得するクエリ（gamesテーブルから）
-            multi_genre_query = """
-            SELECT 
-                app_id,
-                name,
-                COALESCE(price_final / 100.0, 0) AS price_usd,
-                COALESCE(positive_reviews, 0) as positive_reviews,
-                COALESCE(negative_reviews, 0) as negative_reviews,
-                COALESCE(total_reviews, 0) as total_reviews,
-                array_to_string(genres, ', ') AS all_genres
-            FROM games 
-            WHERE type = 'game' 
-                AND 'Indie' = ANY(genres)
-                AND array_length(genres, 1) > 1
-            ORDER BY COALESCE(total_reviews, 0) DESC
-            LIMIT 100
-            """
-
-            multi_genre_df = pd.read_sql_query(multi_genre_query, engine)
+            # Firestoreデータから複数ジャンルを持つゲームを抽出
+            multi_genre_games = []
+            for _, game in df.iterrows():
+                if 'genres' in df.columns and isinstance(game.get('genres'), list) and len(game.get('genres', [])) > 1:
+                    multi_genre_games.append({
+                        'app_id': game.get('app_id'),
+                        'name': game.get('name'),
+                        'price_usd': game.get('price_usd', 0),
+                        'positive_reviews': game.get('positive_reviews', 0),
+                        'negative_reviews': game.get('negative_reviews', 0),
+                        'total_reviews': game.get('total_reviews', 0),
+                        'all_genres': ', '.join(game.get('genres', [])) if isinstance(game.get('genres'), list) else str(game.get('genres', ''))
+                    })
+            
+            multi_genre_df = pd.DataFrame(multi_genre_games).head(100)
 
             if len(multi_genre_df) > 0:
                 st.success(
