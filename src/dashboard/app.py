@@ -1077,111 +1077,48 @@ def display_genre_analysis(df):
             st.error(f"複数ジャンルデータの取得でエラーが発生しました: {e}")
             st.info("💡 単一ジャンル表示に切り替えて続行します。")
 
-    # 正規化データベースから全ジャンル情報を取得（PostgreSQL無効化）
-    try:
-        # PostgreSQL処理を完全スキップしてフォールバックに移行
-        raise Exception("PostgreSQL機能無効 - Firestoreのみ使用")
+    # Firestoreから直接ジャンル情報を取得（PostgreSQL完全無効化）
+    # フォールバック処理を直接実行
+    show_info = st.session_state.get("show_announcements", False)
+    if show_info:
+        st.info("💡 Firestore専用モード: シンプルなジャンル表示を使用します")
 
-        # フィルター条件をSQLクエリに適用
-        price_condition = ""
-        if price_filter == "有料のみ":
-            price_condition = "AND g.price_final > 0"
-        elif price_filter == "無料のみ":
-            price_condition = "AND g.price_final = 0"
+    non_indie_df = filtered_df[filtered_df["primary_genre"] != "Indie"].copy()
 
-        # 複数ジャンル対応のクエリ
-        multi_genre_query = f"""
-        SELECT 
-            genre.name AS genre_name,
-            COUNT(DISTINCT g.app_id) AS game_count,
-            AVG(g.price_final / 100.0) FILTER (WHERE g.price_final > 0) AS avg_price_usd,
-            AVG(g.platforms_windows::int + g.platforms_mac::int + g.platforms_linux::int) AS avg_platform_count,
-            SUM(g.positive_reviews) AS total_positive,
-            SUM(g.negative_reviews) AS total_negative,
-            SUM(g.total_reviews) AS total_reviews,
-            AVG(g.positive_reviews::float / NULLIF(g.total_reviews, 0)) FILTER (WHERE g.total_reviews > 0) AS avg_rating
-        FROM games_normalized g
-        INNER JOIN game_genres gg ON g.app_id = gg.game_id
-        INNER JOIN genres genre ON gg.genre_id = genre.id
-        WHERE g.is_indie = true 
-        AND genre.name != 'Indie'
-        {price_condition}
-        GROUP BY genre.name
-        HAVING COUNT(DISTINCT g.app_id) >= {min_games}
-        ORDER BY COUNT(DISTINCT g.app_id) DESC
-        LIMIT {top_n}
-        """
+    if len(non_indie_df) == 0:
+        st.warning("Indie以外のジャンルデータがありません。")
+        return
 
-        genre_stats_df = pd.read_sql_query(multi_genre_query, engine)
-
-        if len(genre_stats_df) == 0:
-            st.warning("フィルター条件に該当するジャンルデータがありません。")
-            return
-
-        # データフレームをインデックス化
-        genre_stats = genre_stats_df.set_index("genre_name")
-
-        # 列名を統一（既存コードとの互換性のため）
-        genre_stats = genre_stats.rename(
-            columns={
-                "game_count": "app_id",
-                "avg_price_usd": "price_usd",
-                "avg_platform_count": "platform_count",
-                "total_positive": "positive_reviews",
-                "total_negative": "negative_reviews",
-                "avg_rating": "rating",
+    genre_stats = (
+        non_indie_df.groupby("primary_genre")
+        .agg(
+            {
+                "app_id": "count",
+                "price_usd": "mean",
+                "platform_count": "mean",
+                "positive_reviews": "sum",
+                "negative_reviews": "sum",
             }
         )
+        .round(2)
+    )
 
-        # NULLの処理
-        genre_stats["price_usd"] = genre_stats["price_usd"].fillna(0)
-        genre_stats["rating"] = genre_stats["rating"].fillna(0)
+    # 最小ゲーム数でフィルター
+    genre_stats = genre_stats[genre_stats["app_id"] >= min_games]
+    genre_stats = genre_stats.sort_values("app_id", ascending=False).head(top_n)
 
-        st.success(f"✅ 複数ジャンル対応: {len(genre_stats)}ジャンルを分析中")
-
-    except Exception as e:
-        # システム情報表示時のみエラーを表示
-        show_info = st.session_state.get("show_announcements", False)
-        if show_info:
-            st.info("💡 Firestore専用モード: シンプルなジャンル表示を使用します")
-        # フォールバック: 従来のprimary_genre方式
-
-        non_indie_df = filtered_df[filtered_df["primary_genre"] != "Indie"].copy()
-
-        if len(non_indie_df) == 0:
-            st.warning("Indie以外のジャンルデータがありません。")
-            return
-
-        genre_stats = (
-            non_indie_df.groupby("primary_genre")
-            .agg(
-                {
-                    "app_id": "count",
-                    "price_usd": "mean",
-                    "platform_count": "mean",
-                    "positive_reviews": "sum",
-                    "negative_reviews": "sum",
-                }
-            )
-            .round(2)
-        )
-
-        # 最小ゲーム数でフィルター
-        genre_stats = genre_stats[genre_stats["app_id"] >= min_games]
-        genre_stats = genre_stats.sort_values("app_id", ascending=False).head(top_n)
-
-        # レビュー評価率計算（ゼロ除算対策）
-        genre_stats["total_reviews"] = (
-            genre_stats["positive_reviews"] + genre_stats["negative_reviews"]
-        )
-        genre_stats["rating"] = genre_stats.apply(
-            lambda row: (
-                row["positive_reviews"] / row["total_reviews"]
-                if row["total_reviews"] > 0
-                else 0
-            ),
-            axis=1,
-        )
+    # レビュー評価率計算（ゼロ除算対策）
+    genre_stats["total_reviews"] = (
+        genre_stats["positive_reviews"] + genre_stats["negative_reviews"]
+    )
+    genre_stats["rating"] = genre_stats.apply(
+        lambda row: (
+            row["positive_reviews"] / row["total_reviews"]
+            if row["total_reviews"] > 0
+            else 0
+        ),
+        axis=1,
+    )
 
     if len(genre_stats) == 0:
         st.warning("フィルター条件に該当するデータがありません。")
