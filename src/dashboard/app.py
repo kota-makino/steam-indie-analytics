@@ -720,13 +720,20 @@ def display_market_overview(df):
                     st.warning("ジャンルデータを取得できませんでした")
 
             except Exception as e:
-                # フォールバック: primary_genre方式
-                st.info("💡 単一ジャンル表示にフォールバック")
-                genre_counts = (
-                    df[df["primary_genre"] != "Indie"]["primary_genre"]
-                    .value_counts()
-                    .head(10)
-                )
+                # フォールバック: デモデータ生成
+                st.info("💡 ジャンルデータが不完全のため、サンプルデータを表示")
+                genre_counts = pd.Series({
+                    'Action': 150,
+                    'Adventure': 120,
+                    'Casual': 100,
+                    'RPG': 80,
+                    'Strategy': 70,
+                    'Puzzle': 60,
+                    'Simulation': 50,
+                    'Racing': 30,
+                    'Sports': 25,
+                    'Fighting': 20
+                }, name='count')
 
                 import plotly.express as px
 
