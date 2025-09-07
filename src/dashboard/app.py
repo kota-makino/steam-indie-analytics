@@ -256,7 +256,10 @@ def load_firestore_data():
         # Firestoreクライアント初期化
         db = firestore.Client()
         
-        st.info("🔍 Firestoreに接続中...")
+        # システム情報表示の条件チェック
+        show_info = st.session_state.get("show_announcements", False)
+        if show_info:
+            st.info("🔍 Firestoreに接続中...")
         
         # gamesコレクションから全ドキュメントを取得
         games_ref = db.collection('games')
@@ -270,7 +273,8 @@ def load_firestore_data():
         
         if not games_data:
             st.warning("⚠️ Firestoreにデータが見つかりません")
-            st.info("💡 scripts/import_to_firestore.py を実行してデータをインポートしてください")
+            if show_info:
+                st.info("💡 scripts/import_to_firestore.py を実行してデータをインポートしてください")
             return load_demo_data()
         
         # DataFrameに変換
@@ -297,12 +301,15 @@ def load_firestore_data():
             meta_doc = db.collection('metadata').document('import_info').get()
             if meta_doc.exists:
                 meta_data = meta_doc.to_dict()
-                st.success(f"✅ Firestoreデータ読み込み完了: {len(df)} ゲーム")
-                st.info(f"📊 インポート日時: {meta_data.get('imported_at', 'unknown')}")
+                if show_info:
+                    st.success(f"✅ Firestoreデータ読み込み完了: {len(df)} ゲーム")
+                    st.info(f"📊 インポート日時: {meta_data.get('imported_at', 'unknown')}")
             else:
-                st.success(f"✅ Firestoreデータ読み込み完了: {len(df)} ゲーム")
+                if show_info:
+                    st.success(f"✅ Firestoreデータ読み込み完了: {len(df)} ゲーム")
         except Exception as e:
-            st.success(f"✅ Firestoreデータ読み込み完了: {len(df)} ゲーム")
+            if show_info:
+                st.success(f"✅ Firestoreデータ読み込み完了: {len(df)} ゲーム")
         
         return df
         
@@ -331,7 +338,9 @@ def get_market_analysis():
     # Firestore/JSON/本番モード時は分析モジュール無効化（PostgreSQL接続回避）
     data_source = os.getenv("DATA_SOURCE", "").lower()
     if data_source in ["json", "firestore"] or os.getenv("ENVIRONMENT") == "production":
-        st.info("📊 本番モード: PostgreSQL分析機能を無効化します")
+        show_info = st.session_state.get("show_announcements", False)
+        if show_info:
+            st.info("📊 本番モード: PostgreSQL分析機能を無効化します")
         return {}
     
     try:
@@ -395,21 +404,27 @@ def load_data():
     
     # DATA_SOURCE環境変数をチェック（最優先）
     data_source = os.getenv("DATA_SOURCE", "").lower()
+    show_info = st.session_state.get("show_announcements", False)
+    
     if data_source == "firestore":
-        st.info("🔥 Firestoreデータベースからデータを読み込んでいます...")
+        if show_info:
+            st.info("🔥 Firestoreデータベースからデータを読み込んでいます...")
         return load_firestore_data()
     elif data_source == "json":
-        st.info("📄 JSONファイルからデータを読み込んでいます...")
+        if show_info:
+            st.info("📄 JSONファイルからデータを読み込んでいます...")
         return load_json_data()
     
     # Cloud Run環境での優先順位: Firestore > JSON
     if os.getenv("ENVIRONMENT") == "production":
         # まずFirestoreを試行
         try:
-            st.info("🔥 本番環境: Firestoreデータベースを試行中...")
+            if show_info:
+                st.info("🔥 本番環境: Firestoreデータベースを試行中...")
             return load_firestore_data()
         except:
-            st.info("📄 フォールバック: JSONデータを使用します...")
+            if show_info:
+                st.info("📄 フォールバック: JSONデータを使用します...")
             return load_json_data()
 
     # データベース接続設定の取得
@@ -1840,6 +1855,10 @@ def main():
     # サイドバー設定
     st.sidebar.title("🎮 Steam Analytics")
     st.sidebar.markdown("---")
+    
+    # 表示設定
+    with st.sidebar.expander("⚙️ 表示設定"):
+        show_announcements = st.checkbox("📢 システム情報を表示", value=False, key="show_announcements")
 
     # キャッシュクリアボタン
     if st.sidebar.button("🔄 データ更新"):
