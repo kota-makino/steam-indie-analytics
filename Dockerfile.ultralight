@@ -2,13 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 必要最小限のパッケージのみ
+# 必要最小限のパッケージのみ（app.pyで使用される全パッケージ）
 RUN pip install \
     streamlit \
     pandas \
     plotly \
     numpy \
-    google-cloud-firestore
+    google-cloud-firestore \
+    sqlalchemy \
+    python-dotenv
 
 # アプリケーションファイルのみコピー（srcディレクトリなし）
 COPY src/dashboard/app.py ./app.py
