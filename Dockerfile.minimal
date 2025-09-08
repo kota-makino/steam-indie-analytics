@@ -13,6 +13,7 @@ RUN pip install \
     python-dotenv
 
 # アプリケーションファイルをコピー
+COPY src/ ./src/
 COPY src/dashboard/app.py ./app.py
 
 # 環境変数（Firestore使用）

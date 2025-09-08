@@ -52,7 +52,10 @@ try:
 
     ANALYZERS_AVAILABLE = True
 except ImportError as e:
-    st.error(f"分析モジュールのインポートエラー: {e}")
+    # 本番環境（DATA_SOURCE=firestore）では分析モジュール不要
+    show_info = os.getenv("ENVIRONMENT") != "production"
+    if show_info:
+        st.info(f"🔍 分析モジュール: 簡素化モードで動作中")
     ANALYZERS_AVAILABLE = False
 
 # AI洞察生成モジュール
@@ -72,9 +75,11 @@ try:
         else:
             st.info("🤖 AI洞察機能: Gemini APIキーが設定されていません")
     else:
-        st.info("🤖 AI洞察機能: 分析モジュールが利用できません")
+        if os.getenv("ENVIRONMENT") != "production":
+            st.info("🤖 AI洞察機能: 分析モジュールが利用できません")
 except ImportError as e:
-    st.info(f"🤖 AI洞察機能: インポートエラー {e}")
+    if os.getenv("ENVIRONMENT") != "production":
+        st.info(f"🤖 AI洞察機能: インポートエラー {e}")
 
 
 # デモ用AI洞察生成関数
