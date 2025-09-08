@@ -11,17 +11,6 @@ steps:
     args: ['push', 'gcr.io/$PROJECT_ID/steam-indie-analytics:minimal']
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/steam-indie-analytics:fixed-v2']
-  - name: 'gcr.io/cloud-builders/gcloud'
-    args: [
-      'run', 'deploy', 'steam-indie-analytics',
-      '--image', 'gcr.io/$PROJECT_ID/steam-indie-analytics:fixed-v2',
-      '--region', 'asia-northeast1',
-      '--platform', 'managed',
-      '--allow-unauthenticated',
-      '--port', '8080',
-      '--set-env-vars', 'ENVIRONMENT=production,PORT=8080,DATA_SOURCE=firestore',
-      '--force-new-revision'
-    ]
 
 images:
   - 'gcr.io/$PROJECT_ID/steam-indie-analytics:minimal'
