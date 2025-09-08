@@ -406,11 +406,18 @@ st.markdown(
     border-left: 4px solid #1f77b4;
 }
 .insight-box {
-    background-color: #e8f4f8;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    border-left: 4px solid #17a2b8;
+    background-color: #ffffff;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     margin: 1rem 0;
+    opacity: 1;
+}
+.insight-content {
+    color: #333333;
+    line-height: 1.6;
+    font-weight: 400;
 }
 </style>
 """,
@@ -1657,8 +1664,10 @@ def display_insights_and_recommendations():
             st.markdown(
                 f"""
             <div class="insight-box">
-                <h4>{insight['title']}</h4>
-                <p>{insight['content']}</p>
+                <div class="insight-content">
+                    <h4 style="color: #2c3e50; margin-bottom: 0.8rem;">{insight['title']}</h4>
+                    <p style="margin-bottom: 0;">{insight['content']}</p>
+                </div>
             </div>
             """,
                 unsafe_allow_html=True,
