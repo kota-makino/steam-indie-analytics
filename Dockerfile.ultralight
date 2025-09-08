@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 必要最小限のパッケージのみ
+RUN pip install \
+    streamlit \
+    pandas \
+    plotly \
+    numpy \
+    google-cloud-firestore
+
+# アプリケーションファイルのみコピー（srcディレクトリなし）
+COPY src/dashboard/app.py ./app.py
+
+# 環境変数（Firestore使用）
+ENV PORT=8080
+ENV DATA_SOURCE=firestore
+ENV ENVIRONMENT=production
+ENV PYTHONPATH=/app
+
+# 実行
+EXPOSE 8080
+CMD streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false

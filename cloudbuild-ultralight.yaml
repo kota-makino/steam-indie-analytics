@@ -1,0 +1,13 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build', 
+      '-f', 'Dockerfile.ultralight',
+      '-t', 'gcr.io/$PROJECT_ID/steam-indie-analytics:ultralight',
+      '.'
+    ]
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/steam-indie-analytics:ultralight']
+
+images:
+  - 'gcr.io/$PROJECT_ID/steam-indie-analytics:ultralight'

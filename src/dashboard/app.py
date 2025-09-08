@@ -728,24 +728,24 @@ def display_market_overview(df):
         with col1:
             st.markdown("#### 🏷️ ジャンル分布")
             
-            # デバッグ情報表示（システム情報設定により条件付き）
-            show_info = st.session_state.get("show_announcements", False)
-            if show_info:
-                st.write("🔍 **デバッグ情報**")
-                st.write(f"📊 データ件数: {len(df)}件")  
-                st.write(f"📋 カラム数: {len(df.columns)}")
-                
-                # primary_genre確認
-                if 'primary_genre' in df.columns:
-                    unique_genres = df['primary_genre'].unique()
-                    st.write(f"🏷️ ユニークジャンル数: {len(unique_genres)}")
-                    if len(unique_genres) > 0:
-                        genre_counts = df['primary_genre'].value_counts().head(5)
-                        st.write("上位5ジャンル:", dict(genre_counts))
+            # 🚨 デバッグ：このメッセージがどこから来るかを特定
+            st.warning("🔍 現在時刻:" + str(datetime.now()) + " - この行が見えたら最新コードが動作中です")
             
-            # ジャンル分布グラフ作成
+            # === 強制デバッグモード: 問題特定のため ===
+            st.write("🔍 **緊急デバッグ - 実行時刻**:", datetime.now().strftime("%H:%M:%S"))
+            st.write(f"🔍 アプリ実行環境: {os.getenv('ENVIRONMENT', '未設定')}")
+            st.write(f"🔍 データソース設定: {os.getenv('DATA_SOURCE', '未設定')}")
+            st.write(f"🔍 データフレーム型: {type(df)}")
+            st.write(f"🔍 データ件数: {len(df)}件")
+            st.write(f"🔍 カラム存在確認: primary_genre = {'primary_genre' in df.columns}")
+            
             if 'primary_genre' in df.columns:
+                st.write(f"🔍 primary_genreユニーク数: {df['primary_genre'].nunique()}")
+                st.write(f"🔍 primary_genreサンプル: {list(df['primary_genre'].head(3))}")
+                
+                # ジャンル分布グラフ作成
                 genre_counts = df['primary_genre'].value_counts().head(10)
+                st.write(f"🔍 ジャンル統計件数: {len(genre_counts)}")
                 
                 if len(genre_counts) > 0:
                     try:
@@ -753,22 +753,22 @@ def display_market_overview(df):
                             x=genre_counts.values,
                             y=genre_counts.index,
                             orientation="h", 
-                            title="ジャンル別ゲーム数",
+                            title="ジャンル別ゲーム数（デバッグ版）",
                             labels={"x": "ゲーム数", "y": "ジャンル"}
                         )
                         fig_genre.update_layout(height=400)
                         st.plotly_chart(fig_genre, width='stretch')
-                        
-                        if show_info:
-                            st.success(f"✅ データ取得成功: {genre_counts.sum():,}件のゲーム")
+                        st.success(f"✅ グラフ表示成功: {genre_counts.sum():,}件")
                     except Exception as e:
-                        st.error(f"❌ グラフ作成エラー: {e}")
-                        if show_info:
-                            st.error(f"詳細: {str(e)}")
+                        st.error(f"❌ グラフエラー: {e}")
+                        st.write(f"🔍 エラー詳細: {str(e)}")
                 else:
-                    st.warning("⚠️ ジャンルデータが見つかりません")
+                    st.error("❌ ジャンル統計が空です")
             else:
-                st.error("❌ ジャンルデータの取得に失敗しました")
+                st.error("❌ primary_genreカラムが存在しません")
+                st.write(f"🔍 利用可能カラム: {list(df.columns)}")
+            
+            # === デバッグモード終了 ===
 
         with col2:
             st.markdown("#### 💰 価格カテゴリ分布")
