@@ -755,15 +755,21 @@ def display_market_overview(df):
             # price_categoryカラムが存在しない場合は作成
             if 'price_category' not in df.columns:
                 if 'price_usd' in df.columns:
+                    # デバッグ情報（一時的）
+                    show_info = st.session_state.get("show_announcements", False)
+                    if show_info:
+                        st.write(f"🔍 price_usd統計: min={df['price_usd'].min():.2f}, max={df['price_usd'].max():.2f}, 無料ゲーム数={len(df[df['price_usd'] == 0])}")
+                    
                     df['price_category'] = df['price_usd'].apply(
                         lambda x: '無料' if x == 0 else 
-                                 '低価格' if x < 10 else
-                                 '中価格' if x < 30 else 
-                                 'プレミアム'
+                                 '低価格帯 (¥0-750)' if x < 5 else
+                                 '中価格帯 (¥750-2,250)' if x < 15 else
+                                 '高価格帯 (¥2,250-4,500)' if x < 30 else 
+                                 'プレミアム (¥4,500+)'
                     )
                 else:
                     # フォールバック: サンプルデータ
-                    df['price_category'] = ['無料'] * (len(df)//3) + ['低価格'] * (len(df)//3) + ['中価格'] * (len(df) - 2*(len(df)//3))
+                    df['price_category'] = ['無料'] * (len(df)//3) + ['低価格帯 (¥0-750)'] * (len(df)//3) + ['中価格帯 (¥750-2,250)'] * (len(df) - 2*(len(df)//3))
             
             price_counts = df["price_category"].value_counts()
 
